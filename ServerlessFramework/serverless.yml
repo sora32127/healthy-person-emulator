@@ -1,0 +1,29 @@
+service: hpefunctions
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  architecture: x86_64
+  region: ap-northeast-1
+  stage: prod
+  runtime: python3.9
+  iam:
+    role: arn:aws:iam::662924458234:role/lambda_execution_role
+
+package:
+  individually: true
+  exclude:
+    - ./**
+
+functions:
+  PostLatestArticles:
+    handler: lambda_function.lambda_handler
+    package:
+      include:
+        - PostLatestArticles/**
+    module: PostLatestArticles
+    layers: arn:aws:lambda:ap-northeast-1:770693421928:layer:Klayers-p39-pillow:1
+
+
+plugins:
+  - serverless-python-requirements
