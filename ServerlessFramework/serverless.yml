@@ -23,7 +23,20 @@ functions:
         - PostLatestArticles/**
     module: PostLatestArticles
     layers: arn:aws:lambda:ap-northeast-1:770693421928:layer:Klayers-p39-pillow:1
-
+    events:
+      - stream:
+          type: dynamodb
+          arn: arn:aws:dynamodb:ap-northeast-1:662924458234:table/hpe_content/stream/2023-01-04T12:38:26.419
+  
+  InsertNewArticleToDynamodb:
+    handler: lambda_function.lambda_handler
+    package:
+      include:
+        - InsertNewArticleToDynamodb/**
+    module: InsertNewArticleToDynamodb
+    timeout: 600
+    events:
+     - schedule: rate(10 minutes)
 
 plugins:
   - serverless-python-requirements
