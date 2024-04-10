@@ -1,0 +1,9 @@
+{
+  "devDependencies": {
+    "serverless-python-requirements": "^6.1.0"
+  },
+  "dependencies": {
+    "@axe-core/puppeteer": "^4.8.5",
+    "axe-reports": "^1.1.11"
+  }
+}

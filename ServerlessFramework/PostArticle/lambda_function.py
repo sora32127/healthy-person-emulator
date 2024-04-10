@@ -1,21 +1,53 @@
+import psycopg2
 import tweepy
 from datetime import datetime
 from bs4 import BeautifulSoup
-import requests
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
-from typing import Final, Dict
+from typing import Final, Dict, List
 import boto3
 import json
+from botocore.exceptions import ClientError
+
 
 FONT_FILE_PATH: Final[str] = "./BIZ-UDGOTHICB.TTC"
 TIMESTAMP_STRING: Final[str] = datetime.now().strftime("%Y%m%d%H%M%S")
 
+def get_supabase_secret():
 
-def get_image(url: str) -> None:
-    # 画像の元データを取得する：開始
-    res = requests.get(url=url, timeout=10).text
-    soup = BeautifulSoup(res, "html.parser")
+    secret_name = "SUPABASE_CONNECTION_SECRET"
+    region_name = "ap-northeast-1"
+
+    session = boto3.session.Session()
+    client = session.client(
+        service_name='secretsmanager',
+        region_name=region_name
+    )
+
+    try:
+        get_secret_value_response = client.get_secret_value(
+            SecretId=secret_name
+        )
+    except ClientError as e:
+        raise e
+
+    secret = get_secret_value_response['SecretString']
+    return json.loads(secret)
+
+
+def get_image(secrets: Dict[str,str], post_id:int) -> List[Dict[str, str]]:
+    conn = psycopg2.connect(
+        dbname=secrets["dbname"],
+        user=secrets["username"],
+        password=secrets["password"],
+        host=secrets["host"],
+        port=secrets["port"]
+    )
+    cur = conn.cursor()
+    cur.execute("SELECT post_content FROM dim_posts where post_id = %s", (post_id,))
+    post_content = cur.fetchall()[0][0]
+    cur.close()
+    soup = BeautifulSoup(post_content, "html.parser")
     table_data_raw = soup.find("table").find_all("td")
     table_data = {
         table_data_raw[2 * i].text: table_data_raw[2 * i + 1].text
@@ -29,6 +61,8 @@ def get_image(url: str) -> None:
     else:
         # 例外の場合は1:1の比率で画像を作成する
         get_image_by_ratio(1 / 2, 1 / 2, table_data)
+    print(table_data)
+
 
 
 def get_image_by_ratio(
@@ -46,6 +80,13 @@ def get_image_by_ratio(
     candidate_list = [i / 30 for i in range(1, 31)]
     if key_length_ratio not in candidate_list:
         raise ValueError("key_length_ratio must be a multiple of 30.")
+
+    # FONT_FILE_PATHにファイルが存在することを確認する
+    try:
+        with open(FONT_FILE_PATH):
+            pass
+    except FileNotFoundError:
+        raise FileNotFoundError("The specified font file does not exist.")
 
     font = ImageFont.truetype(FONT_FILE_PATH, 20)
 
@@ -150,11 +191,12 @@ def post_tweet(title, url, secrets):
 
 
 def lambda_handler(event, context):
-    title: str = event["Records"][0]["dynamodb"]["Keys"]["title"]["S"]
-    url: str = event["Records"][0]["dynamodb"]["Keys"]["url"]["S"]
-    get_image(url=url)
-    post_tweet(title=title, url=url, secrets=get_secrets())
+    event_name: str = event["Records"][0]["eventName"]
+    if event_name != "INSERT":
+        return
 
-
-if __name__ == "__main__":
-    lambda_handler({}, {})
+    post_id:int = event["Records"][0]["dynamodb"]["Keys"]["post_id"]["N"]
+    post_title:str = event["Records"][0]["dynamodb"]["NewImage"]["post_title"]["S"]
+    post_url:str = event["Records"][0]["dynamodb"]["NewImage"]["post_url"]["S"]
+    get_image(post_id=post_id, secrets=get_supabase_secret())
+    post_tweet(title=post_title, url=post_url, secrets=get_secrets())
