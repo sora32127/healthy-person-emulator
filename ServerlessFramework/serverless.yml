@@ -9,6 +9,10 @@ provider:
   runtime: python3.9
   iam:
     role: arn:aws:iam::662924458234:role/lambda_execution_role
+  ecr:
+    images:
+      extract_and_load_to_bq:
+        path: ./ExtractAndLoadToBQ
 
 package:
   individually: true
@@ -37,6 +41,26 @@ functions:
     timeout: 600
     events:
      - schedule: rate(10 minutes)
+
+  ExtractAndLoadToBQ:
+    image:
+      name: extract_and_load_to_bq
+    package:
+      include:
+        - ExtractAndLoadToBQ/**
+    module: ExtractAndLoadToBQ
+    timeout: 900
+    events:
+     - schedule: cron(0 16 * * ? *)
+    environment:
+      DLT_DATA_DIR : /tmp
+      DLT_PIPELINE_DIR : /tmp
+      DLT_PROJECT_DIR : /tmp
+
+
+
+
+
 
 plugins:
   - serverless-python-requirements
