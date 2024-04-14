@@ -10,8 +10,8 @@ import json
 from botocore.exceptions import ClientError
 
 
-FONT_FILE_PATH: Final[str] = "./BIZ-UDGOTHICB.TTC"
-TIMESTAMP_STRING: Final[str] = datetime.now().strftime("%Y%m%d%H%M%S")
+FONT_FILE_PATH: Final[str] = "ServerlessFramework/PostArticle/BIZ-UDGOTHICB.TTC"
+S3_BUCKET_NAME: Final[str] = "healthy-person-emulator-public-assets"
 
 def get_supabase_secret():
 
@@ -34,8 +34,7 @@ def get_supabase_secret():
     secret = get_secret_value_response['SecretString']
     return json.loads(secret)
 
-
-def get_image(secrets: Dict[str,str], post_id:int) -> List[Dict[str, str]]:
+def get_text_data(secrets: Dict[str,str], post_id:int) -> List[Dict[str, str]]:
     conn = psycopg2.connect(
         dbname=secrets["dbname"],
         user=secrets["username"],
@@ -53,20 +52,20 @@ def get_image(secrets: Dict[str,str], post_id:int) -> List[Dict[str, str]]:
         table_data_raw[2 * i].text: table_data_raw[2 * i + 1].text
         for i in range(len(table_data_raw) // 2)
     }
-    # 画像の元データを取得する：終了
+    return table_data
 
+
+def get_image(post_id:int, table_data: Dict[str,str]) -> List[Dict[str, str]]:
     if "Who(誰が)" in table_data.keys():
-        # 通常の場合は1:2の比率で画像を作成する
-        get_image_by_ratio(1 / 3, 2 / 3, table_data)
+        get_image_by_ratio(1 / 3, 2 / 3, table_data, post_id)
     else:
         # 例外の場合は1:1の比率で画像を作成する
-        get_image_by_ratio(1 / 2, 1 / 2, table_data)
-    print(table_data)
-
-
+        get_image_by_ratio(1 / 2, 1 / 2, table_data, post_id)
+    
+    return f"https://{S3_BUCKET_NAME}.s3-ap-northeast-1.amazonaws.com/{post_id}.jpg"
 
 def get_image_by_ratio(
-    key_length_ratio: float, content_length_ratio: float, table_data: Dict[str, str]
+    key_length_ratio: float, content_length_ratio: float, table_data: Dict[str, str], post_id:int
 ) -> None:
     if key_length_ratio + content_length_ratio != 1:
         raise ValueError(
@@ -148,7 +147,14 @@ def get_image_by_ratio(
         if key != list(table_data.keys())[-1]:
             draw.line([(0, y_position), (600, y_position)], fill=(0, 0, 0), width=1)
 
-    im.save("/tmp/{}.jpg".format(TIMESTAMP_STRING), quality=95)
+    im.save("/tmp/{}.jpg".format(post_id), quality=95)
+
+    s3 = boto3.client("s3")
+    s3.upload_file(
+        "/tmp/{}.jpg".format(post_id),
+        S3_BUCKET_NAME,
+        "{}.jpg".format(post_id)
+    )
 
 
 def get_secrets() -> Dict[str, str]:
@@ -164,7 +170,7 @@ def get_secrets() -> Dict[str, str]:
     }
 
 
-def post_tweet(title, url, secrets):
+def post_tweet(title, url, secrets, post_id):
     text = f"[新規記事] : {title} 健常者エミュレータ事例集 {url}"
     consumer_key = secrets["CK"]
     consumer_secret = secrets["CS"]
@@ -185,18 +191,56 @@ def post_tweet(title, url, secrets):
     )
     api = tweepy.API(auth)
     media = api.media_upload(
-        filename="/tmp/{}.jpg".format(TIMESTAMP_STRING)
+        filename="/tmp/{}.jpg".format(post_id)
     )  # apiv1とv2を併用している
     tweet = client.create_tweet(text=text, media_ids=[media.media_id])
 
+def update_postgres_ogp_url(post_id:int, s3_url:str, secrets:Dict[str,str]):
+    conn = psycopg2.connect(
+        dbname=secrets["dbname"],
+        user=secrets["username"],
+        password=secrets["password"],
+        host=secrets["host"],
+        port=secrets["port"]
+    )
+    cur = conn.cursor()
+    cur.execute("UPDATE dim_posts SET ogp_image_url = %s WHERE post_id = %s", (s3_url, post_id))
+    conn.commit()
+    cur.close()
 
 def lambda_handler(event, context):
     event_name: str = event["Records"][0]["eventName"]
     if event_name != "INSERT":
         return
-
     post_id:int = event["Records"][0]["dynamodb"]["Keys"]["post_id"]["N"]
     post_title:str = event["Records"][0]["dynamodb"]["NewImage"]["post_title"]["S"]
     post_url:str = event["Records"][0]["dynamodb"]["NewImage"]["post_url"]["S"]
-    get_image(post_id=post_id, secrets=get_supabase_secret())
-    post_tweet(title=post_title, url=post_url, secrets=get_secrets())
+    secrets = get_supabase_secret()
+
+    table_data = get_text_data(
+        secrets=secrets,
+        post_id=post_id
+    )
+    s3_url = get_image(post_id=post_id, table_data=table_data)
+    print(s3_url)
+    update_postgres_ogp_url(post_id=post_id, s3_url=s3_url, secrets=secrets)
+    post_tweet(title=post_title, url=post_url, secrets=get_secrets(), post_id=post_id)
+    
+
+if __name__ == "__main__":
+    test_event = {
+        "Records": [
+            {
+                "eventName": "INSERT",
+                "dynamodb": {
+                    "Keys": {"post_id": {"N": "40047"}},
+                    "NewImage": {
+                        "post_title": {"S": "嫌いな奴でも死を笑ってはいけない。"},
+                        "post_url": {"S": "https://healthy-person-emulator.org/archives/40047"},
+                    },
+                },
+            }
+        ]
+    }
+    print(test_event)
+    lambda_handler(test_event, None)
