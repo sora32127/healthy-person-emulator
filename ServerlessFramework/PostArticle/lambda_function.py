@@ -8,6 +8,7 @@ from typing import Final, Dict, List
 import boto3
 import json
 from botocore.exceptions import ClientError
+import re
 
 
 FONT_FILE_PATH: Final[str] = "ServerlessFramework/PostArticle/BIZ-UDGOTHICB.TTC"
@@ -214,6 +215,10 @@ def lambda_handler(event, context):
         return
     post_id:int = event["Records"][0]["dynamodb"]["Keys"]["post_id"]["N"]
     post_title:str = event["Records"][0]["dynamodb"]["NewImage"]["post_title"]["S"]
+
+    if re.match(r"^.*プログラムテスト.*$", post_title):
+        return
+
     post_url:str = event["Records"][0]["dynamodb"]["NewImage"]["post_url"]["S"]
     secrets = get_supabase_secret()
 
