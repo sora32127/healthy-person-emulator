@@ -1,4 +1,3 @@
-import psycopg2
 import tweepy
 from datetime import datetime
 from bs4 import BeautifulSoup
@@ -9,9 +8,9 @@ import boto3
 import json
 from botocore.exceptions import ClientError
 import re
+from supabase import create_client, Client
 
-
-FONT_FILE_PATH: Final[str] = "ServerlessFramework/PostArticle/BIZ-UDGOTHICB.TTC"
+FONT_FILE_PATH: Final[str] = "./BIZ-UDGOTHICB.TTC"
 S3_BUCKET_NAME: Final[str] = "healthy-person-emulator-public-assets"
 
 def get_supabase_secret():
@@ -36,17 +35,9 @@ def get_supabase_secret():
     return json.loads(secret)
 
 def get_text_data(secrets: Dict[str,str], post_id:int) -> List[Dict[str, str]]:
-    conn = psycopg2.connect(
-        dbname=secrets["dbname"],
-        user=secrets["username"],
-        password=secrets["password"],
-        host=secrets["host"],
-        port=secrets["port"]
-    )
-    cur = conn.cursor()
-    cur.execute("SELECT post_content FROM dim_posts where post_id = %s", (post_id,))
-    post_content = cur.fetchall()[0][0]
-    cur.close()
+    client: Client = create_client(secrets["SUPABASE_URL"], secrets["SUPABASE_SERVICE_ROLE_KEY"])
+    response = client.table("dim_posts").select("post_content").eq("post_id",post_id).execute()
+    post_content = response.data[0]["post_content"]
     soup = BeautifulSoup(post_content, "html.parser")
     table_data_raw = soup.find("table").find_all("td")
     table_data = {
@@ -197,17 +188,9 @@ def post_tweet(title, url, secrets, post_id):
     tweet = client.create_tweet(text=text, media_ids=[media.media_id])
 
 def update_postgres_ogp_url(post_id:int, s3_url:str, secrets:Dict[str,str]):
-    conn = psycopg2.connect(
-        dbname=secrets["dbname"],
-        user=secrets["username"],
-        password=secrets["password"],
-        host=secrets["host"],
-        port=secrets["port"]
-    )
-    cur = conn.cursor()
-    cur.execute("UPDATE dim_posts SET ogp_image_url = %s WHERE post_id = %s", (s3_url, post_id))
-    conn.commit()
-    cur.close()
+    client: Client = create_client(secrets["SUPABASE_URL"], secrets["SUPABASE_SERVICE_ROLE_KEY"])
+    response = client.table("dim_posts").update({"ogp_image_url": s3_url}).eq("post_id",post_id).execute()
+    return
 
 def lambda_handler(event, context):
     event_name: str = event["Records"][0]["eventName"]

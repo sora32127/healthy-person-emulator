@@ -1,10 +1,9 @@
 from typing import Dict, List, Set
 import json
-
 import boto3
 from botocore.exceptions import ClientError
-import psycopg2
-
+from datetime import datetime, timedelta
+from supabase import create_client, Client
 
 dynamoDB = boto3.resource(service_name="dynamodb")
 table = dynamoDB.Table(name="hpe_content_buffer")
@@ -32,27 +31,18 @@ def get_secret():
 
 
 def get_data(secrets: Dict[str,str]) -> List[Dict[str, str]]:
-    conn = psycopg2.connect(
-        dbname=secrets["dbname"],
-        user=secrets["username"],
-        password=secrets["password"],
-        host=secrets["host"],
-        port=secrets["port"]
-    )
-    cur = conn.cursor()
-    cur.execute("SELECT post_id, post_title FROM dim_posts order by post_date_gmt desc limit 10;")
-    data = cur.fetchall()
-    cur.close()
+    yesterday_datetime = datetime.now() - timedelta(days=4)
 
+    client: Client = create_client(secrets["SUPABASE_URL"], secrets["SUPABASE_SERVICE_ROLE_KEY"])
+    response = client.table("dim_posts").select("post_id, post_title").gte("post_date_jst", yesterday_datetime).execute()
     ans: List[Dict[str, str]] = [
         {
-            "post_id": i[0],
-            "post_title": i[1],
-            "post_url": f"https://healthy-person-emulator.org/archives/{i[0]}"
+            "post_id": i["post_id"],
+            "post_title": i["post_title"],
+            "post_url": f"https://healthy-person-emulator.org/archives/{i['post_id']}"
         }
-        for i in data]
+        for i in response.data]
     return ans
-
 
 def scan_table() -> Set[str]:
     response: List[Dict[str, str]] = table.scan()["Items"]
