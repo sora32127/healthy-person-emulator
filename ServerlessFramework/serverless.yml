@@ -56,6 +56,16 @@ functions:
       DLT_DATA_DIR : /tmp
       DLT_PIPELINE_DIR : /tmp
       DLT_PROJECT_DIR : /tmp
+  
+  ReportWeeklySummary:
+    handler: lambda_function.lambda_handler
+    package:
+      include:
+        - ReportWeeklySummary/**
+    module: ReportWeeklySummary
+    timeout: 600
+    events:
+     - schedule: cron(0 12 ? * 1 *)
 
 
 
