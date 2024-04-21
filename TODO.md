@@ -1,0 +1,4 @@
+- PostArticleについて
+  - 一回のストリームで複数の投稿があると対応できない
+- PostArtcile + InsertArticleについて
+  - ログを設計するgit 

@@ -1,5 +1,6 @@
 {
   "devDependencies": {
+    "serverless-newrelic-lambda-layers": "^5.1.0",
     "serverless-python-requirements": "^6.1.0"
   },
   "dependencies": {

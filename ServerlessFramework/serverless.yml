@@ -1,5 +1,6 @@
 service: hpefunctions
 frameworkVersion: "3"
+useDotenv: true
 
 provider:
   name: aws
@@ -67,10 +68,13 @@ functions:
     events:
      - schedule: cron(0 12 ? * 1 *)
 
-
-
-
-
-
 plugins:
   - serverless-python-requirements
+  - serverless-newrelic-lambda-layers
+
+custom:
+  newRelic:
+    accountId: ${env:NEW_RELIC_ACCOUNT_ID}
+    apiKey: ${env:NEW_RELIC_API_KEY}
+    exclude:
+      - ExtractAndLoadToBQ
