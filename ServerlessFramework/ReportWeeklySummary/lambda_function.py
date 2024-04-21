@@ -37,6 +37,8 @@ def create_tweet_text(weekly_summary_data):
     for i in range(min(3, len(weekly_summary_data))):
         post = weekly_summary_data[i]
         tweet_text += f"\n{i+1} : {post['post_title']} \nhttps://healthy-person-emulator.org/archives/{post['post_id']}\n"
+    tweet_text += f"\n{weekly_summary_data[0]["post_url"]}"
+    # Twitterの仕様上、最後のリンクがOGに反映されるため、最後に追加する
     return tweet_text
 
 def get_twitter_credentials():
