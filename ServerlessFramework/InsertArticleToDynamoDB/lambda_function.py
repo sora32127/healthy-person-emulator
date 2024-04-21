@@ -4,9 +4,12 @@ import boto3
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta
 from supabase import create_client, Client
+import logging
 
 dynamoDB = boto3.resource(service_name="dynamodb")
 table = dynamoDB.Table(name="hpe_content_buffer")
+logger = logging.getLogger()
+
 
 def get_secret():
 
@@ -68,10 +71,16 @@ def insert(data: List[Dict[str, str]]) -> None:
 
 
 def lambda_handler(event, context) -> None:
-    data: List[Dict[str, str]] = get_data(get_secret())
-    unique_post_ids: Set[str] = scan_table()
-    ans: List[Dict[str, str]] = check_duplication(data=data, unique_post_ids=unique_post_ids)
-    insert(data=ans)
+    try:
+        data: List[Dict[str, str]] = get_data(get_secret())
+        unique_post_ids: Set[str] = scan_table()
+        ans: List[Dict[str, str]] = check_duplication(data=data, unique_post_ids=unique_post_ids)
+        insert(data=ans)
+        logger.setLevel("INFO")
+        logger.info(f"Successfully inserted, {len(ans)} items inserted.")
+    except Exception as e:
+        logger.setLevel("ERROR")
+        logger.error(f"Error occurred: {e}")
 
 
 if __name__ == "__main__":

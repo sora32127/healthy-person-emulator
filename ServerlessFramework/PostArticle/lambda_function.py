@@ -9,9 +9,12 @@ import json
 from botocore.exceptions import ClientError
 import re
 from supabase import create_client, Client
+import logging
 
 FONT_FILE_PATH: Final[str] = "./BIZ-UDGOTHICB.TTC"
 S3_BUCKET_NAME: Final[str] = "healthy-person-emulator-public-assets"
+
+logger = logging.getLogger()
 
 def get_supabase_secret():
 
@@ -193,26 +196,32 @@ def update_postgres_ogp_url(post_id:int, s3_url:str, secrets:Dict[str,str]):
     return
 
 def lambda_handler(event, context):
-    event_name: str = event["Records"][0]["eventName"]
-    if event_name != "INSERT":
-        return
-    post_id:int = event["Records"][0]["dynamodb"]["Keys"]["post_id"]["N"]
-    post_title:str = event["Records"][0]["dynamodb"]["NewImage"]["post_title"]["S"]
+    try:
+        event_name: str = event["Records"][0]["eventName"]
+        if event_name != "INSERT":
+            return
+        post_id:int = event["Records"][0]["dynamodb"]["Keys"]["post_id"]["N"]
+        post_title:str = event["Records"][0]["dynamodb"]["NewImage"]["post_title"]["S"]
 
-    if re.match(r"^.*プログラムテスト.*$", post_title):
-        return
+        if re.match(r"^.*プログラムテスト.*$", post_title):
+            return
 
-    post_url:str = event["Records"][0]["dynamodb"]["NewImage"]["post_url"]["S"]
-    secrets = get_supabase_secret()
+        post_url:str = event["Records"][0]["dynamodb"]["NewImage"]["post_url"]["S"]
+        secrets = get_supabase_secret()
 
-    table_data = get_text_data(
-        secrets=secrets,
-        post_id=post_id
-    )
-    s3_url = get_image(post_id=post_id, table_data=table_data)
-    print(s3_url)
-    update_postgres_ogp_url(post_id=post_id, s3_url=s3_url, secrets=secrets)
-    post_tweet(title=post_title, url=post_url, secrets=get_secrets(), post_id=post_id)
+        table_data = get_text_data(
+            secrets=secrets,
+            post_id=post_id
+        )
+        s3_url = get_image(post_id=post_id, table_data=table_data)
+        print(s3_url)
+        update_postgres_ogp_url(post_id=post_id, s3_url=s3_url, secrets=secrets)
+        post_tweet(title=post_title, url=post_url, secrets=get_secrets(), post_id=post_id)
+        logger.setLevel("INFO")
+        logger.info(f"post_id: {post_id} is successfully posted.")
+    except Exception as e:
+        logger.setLevel("ERROR")
+        logger.error(e)
     
 
 if __name__ == "__main__":
