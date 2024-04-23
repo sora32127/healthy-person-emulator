@@ -1,5 +1,3 @@
-import tweepy
-from datetime import datetime
 from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
@@ -11,7 +9,7 @@ import re
 from supabase import create_client, Client
 import logging
 
-FONT_FILE_PATH: Final[str] = "/.BIZ-UDGOTHICB.TTC"
+FONT_FILE_PATH: Final[str] = "./BIZ-UDGOTHICB.TTC"
 S3_BUCKET_NAME: Final[str] = "healthy-person-emulator-public-assets"
 
 logger = logging.getLogger()
