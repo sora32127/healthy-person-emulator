@@ -63,10 +63,13 @@ def post_tweet(tweet_text):
     client.create_tweet(text=tweet_text)
 
 def lambda_handler(event, context):
-    credentials = get_credentials()
-    weekly_summary_data = get_weekly_summary_data(credentials)
-    tweet_text = create_tweet_text(weekly_summary_data)
-    post_tweet(tweet_text)
+    try:
+        credentials = get_credentials()
+        weekly_summary_data = get_weekly_summary_data(credentials)
+        tweet_text = create_tweet_text(weekly_summary_data)
+        post_tweet(tweet_text)
+    except Exception as e:
+        raise e
 
 if __name__ == "__main__":
     lambda_handler(None, None)

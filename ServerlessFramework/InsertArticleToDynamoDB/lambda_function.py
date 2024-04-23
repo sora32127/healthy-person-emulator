@@ -81,6 +81,7 @@ def lambda_handler(event, context) -> None:
     except Exception as e:
         logger.setLevel("ERROR")
         logger.error(f"Error occurred: {e}")
+        raise e
 
 
 if __name__ == "__main__":

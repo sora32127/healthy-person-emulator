@@ -222,6 +222,7 @@ def lambda_handler(event, context):
     except Exception as e:
         logger.setLevel("ERROR")
         logger.error(e)
+        raise e
     
 
 if __name__ == "__main__":
