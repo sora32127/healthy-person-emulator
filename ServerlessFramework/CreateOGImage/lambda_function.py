@@ -11,7 +11,7 @@ import re
 from supabase import create_client, Client
 import logging
 
-FONT_FILE_PATH: Final[str] = "./BIZ-UDGOTHICB.TTC"
+FONT_FILE_PATH: Final[str] = "/.BIZ-UDGOTHICB.TTC"
 S3_BUCKET_NAME: Final[str] = "healthy-person-emulator-public-assets"
 
 logger = logging.getLogger()
@@ -151,48 +151,21 @@ def get_image_by_ratio(
         "{}.jpg".format(post_id)
     )
 
-
-def get_secrets() -> Dict[str, str]:
-    secret_manager_clinet = boto3.client("secretsmanager")
-    response = secret_manager_clinet.get_secret_value(SecretId="hpe-twitter-bot-tokens")
-
-    payload = json.loads(response["SecretString"])
-    return {
-        "CK": payload["CK"],
-        "CS": payload["CS"],
-        "AT": payload["AT"],
-        "ATS": payload["ATS"],
-    }
-
-
-def post_tweet(title, url, secrets, post_id):
-    text = f"[新規記事] : {title} 健常者エミュレータ事例集 {url}"
-    consumer_key = secrets["CK"]
-    consumer_secret = secrets["CS"]
-    access_token = secrets["AT"]
-    access_token_secret = secrets["ATS"]
-
-    auth = tweepy.OAuth1UserHandler(
-        consumer_key=consumer_key,
-        consumer_secret=consumer_secret,
-        access_token=access_token,
-        access_token_secret=access_token_secret,
-    )
-    client = tweepy.Client(
-        consumer_key=consumer_key,
-        consumer_secret=consumer_secret,
-        access_token=access_token,
-        access_token_secret=access_token_secret,
-    )
-    api = tweepy.API(auth)
-    media = api.media_upload(
-        filename="/tmp/{}.jpg".format(post_id)
-    )  # apiv1とv2を併用している
-    tweet = client.create_tweet(text=text, media_ids=[media.media_id])
-
 def update_postgres_ogp_url(post_id:int, s3_url:str, secrets:Dict[str,str]):
     client: Client = create_client(secrets["SUPABASE_URL"], secrets["SUPABASE_SERVICE_ROLE_KEY"])
-    response = client.table("dim_posts").update({"ogp_image_url": s3_url}).eq("post_id",post_id).execute()
+    client.table("dim_posts").update({"ogp_image_url": s3_url}).eq("post_id",post_id).execute()
+    return
+
+def invoke_sns_post(post_title, post_url, og_url):
+    sns = boto3.client("sns")
+    response = sns.publish(
+        TopicArn="arn:aws:sns:ap-northeast-1:662924458234:healthy-person-emulator-socialpost",
+        Message=json.dumps({
+            "post_title": post_title,
+            "post_url": post_url,
+            "og_url": og_url
+        })
+    )
     return
 
 def lambda_handler(event, context):
@@ -205,8 +178,6 @@ def lambda_handler(event, context):
 
         if re.match(r"^.*プログラムテスト.*$", post_title):
             return
-
-        post_url:str = event["Records"][0]["dynamodb"]["NewImage"]["post_url"]["S"]
         secrets = get_supabase_secret()
 
         table_data = get_text_data(
@@ -214,11 +185,11 @@ def lambda_handler(event, context):
             post_id=post_id
         )
         s3_url = get_image(post_id=post_id, table_data=table_data)
-        print(s3_url)
         update_postgres_ogp_url(post_id=post_id, s3_url=s3_url, secrets=secrets)
-        post_tweet(title=post_title, url=post_url, secrets=get_secrets(), post_id=post_id)
+        post_url = f"https://healthy-person-emulator.org/archives/{post_id}"
+        invoke_sns_post(post_title=post_title, post_url=post_url, og_url=s3_url)
         logger.setLevel("INFO")
-        logger.info(f"post_id: {post_id} is successfully posted.")
+        logger.info(f"post_id: {post_id} is successfully created OG Image.")
     except Exception as e:
         logger.setLevel("ERROR")
         logger.error(e)
