@@ -36,8 +36,10 @@ def create_tweet_text(weekly_summary_data):
     tweet_text = "【今週の人気投稿】\n"
     for i in range(min(3, len(weekly_summary_data))):
         post = weekly_summary_data[i]
-        tweet_text += f"\n{i+1} : {post['post_title']} \nhttps://healthy-person-emulator.org/archives/{post['post_id']}\n"
-    tweet_text += f"\n{weekly_summary_data[0]["post_url"]}"
+        post_url = f"https://healthy-person-emulator.org/archives/{post['post_id']}"
+        tweet_text += f"\n{i+1} : {post['post_title']} \n{post_url}\n"
+    first_post_url = f"https://healthy-person-emulator.org/archives/{weekly_summary_data[0]['post_id']}"
+    tweet_text += f"\n{first_post_url}"
     # Twitterの仕様上、最後のリンクがOGに反映されるため、最後に追加する
     return tweet_text
 
