@@ -1,0 +1,5 @@
+google-cloud==0.34.0
+google-cloud-bigquery==3.10.0
+google-auth==2.29.0
+tweepy == 4.12.1
+supabase==2.4.3

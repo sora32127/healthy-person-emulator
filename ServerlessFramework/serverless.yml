@@ -89,6 +89,16 @@ functions:
     timeout: 600
     events:
      - schedule: cron(0 12 ? * 1 *)
+  
+  ReportLegendaryArticle:
+    handler: lambda_function.lambda_handler
+    package:
+      include:
+        - ReportLegendaryArticle/**
+    module: ReportLegendaryArticle
+    timeout: 600
+    events:
+     - schedule: cron(0 12 ? * * *)
 
 plugins:
   - serverless-python-requirements
