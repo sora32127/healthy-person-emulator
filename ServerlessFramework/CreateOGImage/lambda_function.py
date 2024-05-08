@@ -8,7 +8,7 @@ from botocore.exceptions import ClientError
 import re
 from supabase import create_client, Client
 import logging
-import httpx
+import datetime
 
 FONT_FILE_PATH: Final[str] = "./BIZ-UDGOTHICB.TTC"
 S3_BUCKET_NAME: Final[str] = "healthy-person-emulator-public-assets"
@@ -36,12 +36,14 @@ def get_supabase_secret():
     secret = get_secret_value_response['SecretString']
     return json.loads(secret)
 
-def get_text_data(post_id:int) -> List[Dict[str, str]]:
-    post_url = f"https://healthy-person-emulator.org/archives/{post_id}"
-    response_text = httpx.get(post_url).text
-    print("response_text", response_text)
-    soup = BeautifulSoup(response_text, "html.parser")
-    print("soup", soup)
+def poll_supabase_for_new_posts(secrets):
+    client: Client = create_client(secrets["SUPABASE_URL"], secrets["SUPABASE_SERVICE_ROLE_KEY"])
+    one_day_ago = datetime.datetime.now() - datetime.timedelta(hours=24)
+    posts = client.table("dim_posts").select("post_id,post_content,post_title").gte('post_date_gmt', one_day_ago).eq("is_sns_shared", False).execute()
+    return posts.data
+
+def get_text_data(post_content: str) -> List[Dict[str, str]]:
+    soup = BeautifulSoup(post_content, "html.parser")
     table_data_raw = soup.find("table").find_all("td")
     table_data = {
         table_data_raw[2 * i].text: table_data_raw[2 * i + 1].text
@@ -154,6 +156,7 @@ def get_image_by_ratio(
 def update_postgres_ogp_url(post_id:int, s3_url:str, secrets:Dict[str,str]):
     client: Client = create_client(secrets["SUPABASE_URL"], secrets["SUPABASE_SERVICE_ROLE_KEY"])
     client.table("dim_posts").update({"ogp_image_url": s3_url}).eq("post_id",post_id).execute()
+    client.table("dim_posts").update([{"is_sns_shared": True}]).eq("post_id",post_id).execute()
     return
 
 def invoke_sns_post(post_title, post_url, og_url):
@@ -170,26 +173,29 @@ def invoke_sns_post(post_title, post_url, og_url):
 
 def lambda_handler(event, context):
     try:
-        event_name: str = event["Records"][0]["eventName"]
-        if event_name != "INSERT":
-            return
-        post_id:int = event["Records"][0]["dynamodb"]["Keys"]["post_id"]["N"]
-        post_title:str = event["Records"][0]["dynamodb"]["NewImage"]["post_title"]["S"]
-
-        if re.match(r"^.*プログラムテスト.*$", post_title):
-            return
-        
         secrets = get_supabase_secret()
-        table_data = get_text_data(
-            post_id=post_id
-        )
-
-        s3_url = get_image(post_id=post_id, table_data=table_data)
-        update_postgres_ogp_url(post_id=post_id, s3_url=s3_url, secrets=secrets)
-        post_url = f"https://healthy-person-emulator.org/archives/{post_id}"
-        invoke_sns_post(post_title=post_title, post_url=post_url, og_url=s3_url)
-        logger.setLevel("INFO")
-        logger.info(f"post_id: {post_id} is successfully created OG Image.")
+        posts = poll_supabase_for_new_posts(secrets)
+        if len(posts) == 0:
+            logger.setLevel("INFO")
+            logger.info("There are no posts to create OG Image.")
+            return
+    
+        for post in posts:
+            post_id = post["post_id"]
+            post_title = post["post_title"]
+            post_content = post["post_content"]
+            post_url = f"https://healthy-person-emulator.org/archives/{post_id}"
+            if re.match(r"^.*プログラムテスト.*$", post_title):
+                continue
+            table_data = get_text_data(
+                post_content=post_content
+            )
+            s3_url = get_image(post_id=post_id, table_data=table_data)
+            update_postgres_ogp_url(post_id=post_id, s3_url=s3_url, secrets=secrets)
+            post_url = f"https://healthy-person-emulator.org/archives/{post_id}"
+            invoke_sns_post(post_title=post_title, post_url=post_url, og_url=s3_url)
+            logger.setLevel("INFO")
+            logger.info(f"post_id: {post_id} is successfully created OG Image.")
     except Exception as e:
         logger.setLevel("ERROR")
         logger.error(e)
@@ -197,19 +203,4 @@ def lambda_handler(event, context):
     
 
 if __name__ == "__main__":
-    test_event = {
-        "Records": [
-            {
-                "eventName": "INSERT",
-                "dynamodb": {
-                    "Keys": {"post_id": {"N": "40047"}},
-                    "NewImage": {
-                        "post_title": {"S": "嫌いな奴でも死を笑ってはいけない。"},
-                        "post_url": {"S": "https://healthy-person-emulator.org/archives/40047"},
-                    },
-                },
-            }
-        ]
-    }
-    print(test_event)
-    lambda_handler(test_event, None)
+    lambda_handler(None, None)
