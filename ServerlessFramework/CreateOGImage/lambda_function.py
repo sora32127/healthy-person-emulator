@@ -8,6 +8,7 @@ from botocore.exceptions import ClientError
 import re
 from supabase import create_client, Client
 import logging
+import httpx
 
 FONT_FILE_PATH: Final[str] = "./BIZ-UDGOTHICB.TTC"
 S3_BUCKET_NAME: Final[str] = "healthy-person-emulator-public-assets"
@@ -35,11 +36,12 @@ def get_supabase_secret():
     secret = get_secret_value_response['SecretString']
     return json.loads(secret)
 
-def get_text_data(secrets: Dict[str,str], post_id:int) -> List[Dict[str, str]]:
-    client: Client = create_client(secrets["SUPABASE_URL"], secrets["SUPABASE_SERVICE_ROLE_KEY"])
-    response = client.table("dim_posts").select("post_content").eq("post_id",post_id).execute()
-    post_content = response.data[0]["post_content"]
-    soup = BeautifulSoup(post_content, "html.parser")
+def get_text_data(post_id:int) -> List[Dict[str, str]]:
+    post_url = f"https://healthy-person-emulator.org/archives/{post_id}"
+    response_text = httpx.get(post_url).text
+    print("response_text", response_text)
+    soup = BeautifulSoup(response_text, "html.parser")
+    print("soup", soup)
     table_data_raw = soup.find("table").find_all("td")
     table_data = {
         table_data_raw[2 * i].text: table_data_raw[2 * i + 1].text
@@ -176,12 +178,12 @@ def lambda_handler(event, context):
 
         if re.match(r"^.*プログラムテスト.*$", post_title):
             return
+        
         secrets = get_supabase_secret()
-
         table_data = get_text_data(
-            secrets=secrets,
             post_id=post_id
         )
+
         s3_url = get_image(post_id=post_id, table_data=table_data)
         update_postgres_ogp_url(post_id=post_id, s3_url=s3_url, secrets=secrets)
         post_url = f"https://healthy-person-emulator.org/archives/{post_id}"
