@@ -166,7 +166,8 @@ def invoke_sns_post(post_title, post_url, og_url):
         Message=json.dumps({
             "post_title": post_title,
             "post_url": post_url,
-            "og_url": og_url
+            "og_url": og_url,
+            "message_type": "new"
         })
     )
     return
