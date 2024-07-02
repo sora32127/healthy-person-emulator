@@ -26,23 +26,40 @@ def upload_image_to_misskey(mk):
         data = mk.drive_files_create(f)
     return data["id"]
 
-def post_note_to_misskey(post_title, post_url, uploaded_file_id, mk):
+def create_post_text(post_title, post_url, message_type):
+    type_prefix = {
+        "new": "新規記事",
+        "legendary": "殿堂入り",
+        "random": "ランダム"
+    }
+    if message_type not in type_prefix:
+        raise ValueError("Unknown message type")
+    
+    return f"[{type_prefix[message_type]}] : {post_title} 健常者エミュレータ事例集\n{post_url}"
+
+def post_note_to_misskey(post_text, uploaded_file_id, mk):
     mk.notes_create(
-        text=f"新規記事 : {post_title} 健常者エミュレータ事例集\n{post_url}",
+        text=post_text,
         file_ids=[uploaded_file_id],
     )
+
+def get_infomation_from_message(message):
+    post_title = message["post_title"]
+    post_url = message["post_url"]
+    og_url = message["og_url"]
+    message_type = message["message_type"]
+    return post_title, post_url, og_url, message_type
 
 def lambda_handler(event, context):
     try:
         message = json.loads(event["Records"][0]["Sns"]["Message"])
-        og_url = message["og_url"]
-        post_title = message["post_title"]
-        post_url = message["post_url"]
+        post_title, post_url, og_url, message_type = get_infomation_from_message(message)
         misskey_secret = get_misskey_secret()
         mk = Misskey('https://misskey.io', i = misskey_secret)
         download_image(og_url)
         uploaded_file_id = upload_image_to_misskey(mk)
-        post_note_to_misskey(post_title, post_url, uploaded_file_id, mk)
+        post_text = create_post_text(post_title, post_url, message_type)
+        post_note_to_misskey(post_text, uploaded_file_id, mk)
         logger.setLevel("INFO")
         logger.info(f"post_title: {post_title} is successfully posted.")
     except Exception as e:
@@ -61,6 +78,7 @@ if __name__ == "__main__":
                             "post_title": "無神論者の火",
                             "post_url": "https://healthy-person-emulator.org/archives/23576",
                             "og_url": "https://healthy-person-emulator-public-assets.s3-ap-northeast-1.amazonaws.com/23576.jpg",
+                            "message_type": "new"
                         }
                     )
                 }
