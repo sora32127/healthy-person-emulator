@@ -4,7 +4,7 @@ from typing import Dict, List
 from PIL import Image, ImageDraw, ImageFont
 import boto3
 
-SERIF_FONT_FILE_PATH = "./Kokoro.otf"
+SERIF_FONT_FILE_PATH = "./NotoSerifJP-VariableFont_wght.ttf"
 SANS_SERIF_FONT_FILE_PATH = "./BIZ-UDGOTHICB.TTC"
 PRIMARY_COLOR = (220, 91, 102)  # サーモンピンク（プライマリーカラー）
 SECONDARY_COLOR = (0, 0, 0)  # 黒（セカンダリーカラー）
@@ -37,7 +37,7 @@ def create_og_image(post_title: str, post_tags: List[str]):
     draw = ImageDraw.Draw(im)
     
     # フォントの設定
-    title_font = ImageFont.truetype(SERIF_FONT_FILE_PATH, 64)
+    title_font = ImageFont.truetype(SERIF_FONT_FILE_PATH, 54) # 20文字入る計算になる
     tag_font = ImageFont.truetype(SANS_SERIF_FONT_FILE_PATH, 32)
     author_font = ImageFont.truetype(SERIF_FONT_FILE_PATH, 40)
     
@@ -59,7 +59,7 @@ def create_og_image(post_title: str, post_tags: List[str]):
     
     # タイトルの描画
     title_y = max(tag_y + 40, height // 3)
-    wrapped_title = textwrap.wrap(post_title, width=25)
+    wrapped_title = textwrap.wrap(post_title, width=20)
     for line in wrapped_title:
         draw.text((line_width + 40, title_y), line, font=title_font, fill=ACCENT_COLOR)
         title_y += 80
@@ -110,4 +110,15 @@ def lambda_handler(event, context):
     return res
 
 if __name__ == "__main__":
-    lambda_handler(None, None)
+    SERIF_FONT_FILE_PATH = "ServerlessFramework/CreateOGImageForBlog/NotoSerifJP-VariableFont_wght.ttf"
+    SANS_SERIF_FONT_FILE_PATH = "ServerlessFramework/CreateOGImageForBlog/BIZ-UDGOTHICB.TTC"
+    TMP_FILE_PATH = "./tmp/og_image.png"
+    sample_event = {
+        "body": json.dumps({
+            "post_title": "個人開発とプロダクトマネジメントに関するメモ", # 20文字が一行に入る　合計40文字まで
+            "post_tags": ["Remix", "Cloudflare", "個人開発",  "Python", "TypeScript"], #タグは五個まで
+            "post_id": "sample_id"
+        })
+    }
+    lambda_handler(sample_event, None)
+
