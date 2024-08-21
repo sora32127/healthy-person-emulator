@@ -97,6 +97,17 @@ functions:
     timeout: 600
     events:
      - schedule: cron(0 12 ? * * *)
+  
+  PickRandomArticle:
+    handler: lambda_function.lambda_handler
+    package:
+      include:
+        - PickRandomArticle/**
+    module: PickRandomArticle
+    timeout: 600
+    events:
+     # JSTで8:00, 12:00, 21:00の三つの時間帯に実行する
+     - schedule: cron(0 0,4,13 * * ? *)
 
 plugins:
   - serverless-python-requirements
