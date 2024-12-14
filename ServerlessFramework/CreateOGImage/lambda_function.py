@@ -159,7 +159,7 @@ def update_postgres_ogp_url(post_id:int, s3_url:str, secrets:Dict[str,str]):
     client.table("dim_posts").update([{"is_sns_shared": True}]).eq("post_id",post_id).execute()
     return
 
-def invoke_sns_post(post_title, post_url, og_url):
+def invoke_sns_post(post_title, post_url, og_url, post_id):
     sns = boto3.client("sns")
     response = sns.publish(
         TopicArn="arn:aws:sns:ap-northeast-1:662924458234:healthy-person-emulator-socialpost",
@@ -167,7 +167,8 @@ def invoke_sns_post(post_title, post_url, og_url):
             "post_title": post_title,
             "post_url": post_url,
             "og_url": og_url,
-            "message_type": "new"
+            "message_type": "new",
+            "post_id": post_id
         })
     )
     return
@@ -194,7 +195,7 @@ def lambda_handler(event, context):
             s3_url = get_image(post_id=post_id, table_data=table_data)
             update_postgres_ogp_url(post_id=post_id, s3_url=s3_url, secrets=secrets)
             post_url = f"https://healthy-person-emulator.org/archives/{post_id}"
-            invoke_sns_post(post_title=post_title, post_url=post_url, og_url=s3_url)
+            invoke_sns_post(post_title=post_title, post_url=post_url, og_url=s3_url, post_id=post_id)
             logger.setLevel("INFO")
             logger.info(f"post_id: {post_id} is successfully created OG Image.")
     except Exception as e:
