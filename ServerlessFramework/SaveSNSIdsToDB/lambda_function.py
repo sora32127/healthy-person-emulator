@@ -24,11 +24,13 @@ def save_sns_ids_to_db(post_id, social_type, social_post_id):
     try:
         if social_type == "twitter":
             client.table("dim_posts").update({"tweet_id_of_first_tweet": social_post_id}).eq("post_id", post_id).execute()
+            logger.info(f"tweet_id is saved to db. post_id: {post_id}, tweet_id: {social_post_id}")
         elif social_type == "bluesky":
             client.table("dim_posts").update({"bluesky_post_uri_of_first_post": social_post_id}).eq("post_id", post_id).execute()
-        elif social_type == "activitypub":
+            logger.info(f"bluesky_post_uri is saved to db. post_id: {post_id}, bluesky_post_uri: {social_post_id}")
+        elif social_type == "misskey":
             client.table("dim_posts").update({"misskey_note_id_of_first_note": social_post_id}).eq("post_id", post_id).execute()
-        logger.info(f"sns_ids are saved to db. post_id: {post_id}, social_type: {social_type}, social_post_id: {social_post_id}")
+            logger.info(f"misskey_note_id is saved to db. post_id: {post_id}, misskey_note_id: {social_post_id}")
     except Exception as e:
         logger.error(e)
         raise e
