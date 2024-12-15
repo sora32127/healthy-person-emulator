@@ -37,7 +37,8 @@ def save_sns_ids_to_db(post_id, social_type, social_post_id):
 
 def lambda_handler(event, context):
     try:
-        post_id, social_type, social_post_id = get_message(event)
+        message = json.loads(event["Records"][0]["Sns"]["Message"])
+        post_id, social_type, social_post_id = get_message(message)
         save_sns_ids_to_db(post_id, social_type, social_post_id)
         logger.info(f"sns_ids are saved to db. post_id: {post_id}, social_type: {social_type}, social_post_id: {social_post_id}")
     except Exception as e:
