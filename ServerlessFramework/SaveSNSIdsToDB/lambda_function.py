@@ -6,8 +6,7 @@ import supabase
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-def get_message(event):
-    message = event["Records"][0]["Sns"]["Message"]
+def get_message(message):
     post_id = message["post_id"]
     social_type = message["social_type"]
     social_post_id = message["social_post_id"]
