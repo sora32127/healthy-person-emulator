@@ -1,5 +1,4 @@
 import json
-import supabase
 import tweepy
 import requests
 import logging
@@ -63,22 +62,13 @@ def create_post_text(post_title, post_url, message_type):
     
     return f"[{type_prefix[message_type]}] : {post_title} 健常者エミュレータ事例集\n{post_url}"
 
-def get_credentials_of_db():
-    secretmanager_client = boto3.client("secretsmanager")
-    secret_value = secretmanager_client.get_secret_value(SecretId="SUPABASE_CONNECTION_SECRET")
-    secrets = json.loads(secret_value["SecretString"])
-    return secrets
-
-
-def save_tweet_id_to_db(tweet_id, message_type, post_id):
-    if message_type != "new":
-        logger.info(f"message_type is {message_type}, not new. tweet_id: {tweet_id} is not saved to db.")
-        return
-    credentials_of_db = get_credentials_of_db()
-    client = supabase.create_client(credentials_of_db["SUPABASE_URL"], credentials_of_db["SUPABASE_SERVICE_ROLE_KEY"])
-    client.table("dim_posts").update({"tweet_id_of_first_tweet": tweet_id}).eq("post_id", post_id).execute()
-    logger.info(f"tweet_id: {tweet_id} is saved to db. post_id: {post_id}")
-    return
+def send_event_to_sns(post_id, social_post_id):
+    sns_client = boto3.client("sns")
+    sns_client.publish(
+        TopicArn="arn:aws:sns:ap-northeast-1:662924458234:healthy-person-emulator-socialpostIds",
+        Message=json.dumps({"post_id": post_id, "social_post_id": social_post_id, "social_type": "twitter"})
+    )
+    
 
 def lambda_handler(event, context):
     try:
@@ -88,7 +78,7 @@ def lambda_handler(event, context):
         download_image(og_url)
         post_text = create_post_text(post_title, post_url, message_type)
         tweet_id = post_tweet(post_text, secrets)
-        save_tweet_id_to_db(tweet_id, message_type, post_id)
+        send_event_to_sns(post_id, tweet_id)
         logger.info(f"post_title: {post_title} is successfully tweeted. tweet_id: {tweet_id}")
     except Exception as e:
         logger.setLevel("ERROR")

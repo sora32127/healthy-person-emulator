@@ -4,8 +4,6 @@ import json
 import boto3
 from logging import getLogger
 
-import supabase
-
 logger = getLogger()
 
 def download_image(s3_url):
@@ -46,22 +44,12 @@ def get_infomation_from_message(message):
     post_id = message["post_id"]
     return post_title, post_url, og_url, message_type, post_id
 
-def get_credentials_of_db():
-    secretmanager_client = boto3.client("secretsmanager")
-    secret_value = secretmanager_client.get_secret_value(SecretId="SUPABASE_CONNECTION_SECRET")
-    secrets = json.loads(secret_value["SecretString"])
-    return secrets
-
-
-def save_post_uri_to_db(bluesky_post_uri, message_type, post_id):
-    if message_type != "new":
-        logger.info(f"message_type is {message_type}, not new. bluesky_post_uri: {bluesky_post_uri} is not saved to db.")
-        return
-    credentials_of_db = get_credentials_of_db()
-    client = supabase.create_client(credentials_of_db["SUPABASE_URL"], credentials_of_db["SUPABASE_SERVICE_ROLE_KEY"])
-    client.table("dim_posts").update({"bluesky_post_uri_of_first_post": bluesky_post_uri}).eq("post_id", post_id).execute()
-    logger.info(f"bluesky_post_uri: {bluesky_post_uri} is saved to db. post_id: {post_id}")
-    return
+def send_event_to_sns(post_id, social_post_id):
+    sns_client = boto3.client("sns")
+    sns_client.publish(
+        TopicArn="arn:aws:sns:ap-northeast-1:662924458234:healthy-person-emulator-socialpostIds",
+        Message=json.dumps({"post_id": post_id, "social_post_id": social_post_id, "social_type": "bluesky"})
+    )
 
 def lambda_handler(event, context):
     try:
@@ -89,7 +77,7 @@ def lambda_handler(event, context):
 
         post = bluesky_client.send_post(text=post_text,embed=embed)
         bluesky_post_uri = post.uri
-        save_post_uri_to_db(bluesky_post_uri, message_type, post_id)
+        send_event_to_sns(post_id, bluesky_post_uri)
         logger.info(f"post_title: {post_title} is successfully posted to BlueSky. post_uri: {bluesky_post_uri}")
     except Exception as e:
         logger.error(f"Error: {e}")
