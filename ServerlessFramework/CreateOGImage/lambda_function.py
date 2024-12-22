@@ -39,7 +39,7 @@ def get_supabase_secret():
 def poll_supabase_for_new_posts(secrets):
     client: Client = create_client(secrets["SUPABASE_URL"], secrets["SUPABASE_SERVICE_ROLE_KEY"])
     one_day_ago = datetime.datetime.now() - datetime.timedelta(hours=24)
-    posts = client.table("dim_posts").select("post_id,post_content,post_title").gte('post_date_gmt', one_day_ago).eq("is_sns_shared", False).execute()
+    posts = client.table("dim_posts").select("post_id,post_content,post_title").gte('post_date_gmt', one_day_ago).eq("is_sns_shared", False).eq("is_welcomed", True).execute()
     return posts.data
 
 def get_text_data(post_content: str) -> List[Dict[str, str]]:
