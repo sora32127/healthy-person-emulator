@@ -1,11 +1,9 @@
-import math
 from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
 from typing import Final, Dict, List
 import boto3
 import json
-from botocore.exceptions import ClientError
 import re
 from supabase import create_client, Client
 import logging
@@ -23,9 +21,9 @@ logger = logging.getLogger()
 
 IMAGE_WIDTH: Final[int] = 1200
 IMAGE_HEIGHT: Final[int] = 630
-KEY_COLUMN_WIDTH: Final[int] = 220
+KEY_COLUMN_WIDTH: Final[int] = 250
 CONTENT_COLUMN_WIDTH: Final[int] = IMAGE_WIDTH - KEY_COLUMN_WIDTH
-FONT_SIZE: Final[int] = 20
+FONT_SIZE: Final[int] = 25
 WIDTH_MARGIN: Final[int] = 20
 HEIGHT_MARGIN: Final[int] = 20
 AVAILABLE_HEIGHT: Final[int] = IMAGE_HEIGHT - (2 * HEIGHT_MARGIN)
@@ -55,8 +53,14 @@ def poll_supabase_for_new_posts(secrets):
     client: Client = create_client(secrets["SUPABASE_URL"], secrets["SUPABASE_SERVICE_ROLE_KEY"])
     one_day_ago = datetime.datetime.now() - datetime.timedelta(hours=24)
     posts = client.table("dim_posts").select("post_id,post_content,post_title").gte('post_date_gmt', one_day_ago).eq("is_sns_shared", False).eq("is_welcomed", True).execute()
-    data = posts.data
-    data.post_content = get_text_data(data.post_content)
+    # posts = client.table("dim_posts").select("post_id,post_content,post_title").order("post_id", desc=True).limit(10).execute()
+    data = []
+    for post in posts.data:
+        data.append({
+            "post_id": post["post_id"],
+            "post_title": post["post_title"],
+            "post_content": get_text_data(post["post_content"])
+        })
     return data
 
 def get_text_data(post_content: str) -> List[Dict[str, str]]:
@@ -120,7 +124,7 @@ def get_image(
         )
 
         # コンテンツの描画
-        content_lines = textwrap.wrap(content, width=45)  # 900pxに収まる概算の文字数
+        content_lines = textwrap.wrap(content, width=(CONTENT_COLUMN_WIDTH - WIDTH_MARGIN * 2)//FONT_SIZE-1)  # 900pxに収まる概算の文字数
         if content_lines:
             if len(content_lines) > 2:
                 content_text = content_lines[0] + "\n" + content_lines[1] + "..."
@@ -131,7 +135,7 @@ def get_image(
             
             draw.text(
                 (KEY_COLUMN_WIDTH + WIDTH_MARGIN,
-                 y_position + line_height//3 if len(content_lines) == 1 else y_position + line_height//6),
+                 y_position + line_height//3 if len(content_lines) == 1 else y_position + line_height//10),
                 content_text,
                 font=font,
                 fill=(0, 0, 0)
@@ -226,7 +230,7 @@ test_posts = [
 def lambda_handler(event, context):
     try:
         secrets = get_supabase_secret()
-        posts = poll_supabase_for_new_posts(secrets) if IS_PRODUCTION else test_posts
+        posts = test_posts if not IS_PRODUCTION else poll_supabase_for_new_posts(secrets)
         if len(posts) == 0:
             logger.setLevel("INFO")
             logger.info("There are no posts to create OG Image.")
@@ -240,7 +244,6 @@ def lambda_handler(event, context):
                 continue
             get_image(post_id=post_id, table_data=post["post_content"])
             s3_url = f"https://{S3_BUCKET_NAME}.s3-ap-northeast-1.amazonaws.com/{post_id}.jpg"
-            
             if not IS_PRODUCTION:
                 continue
             upload_to_s3(post_id=post_id)
