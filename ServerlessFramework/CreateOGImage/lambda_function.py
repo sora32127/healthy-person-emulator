@@ -87,7 +87,7 @@ def get_image(
 
     # 縦線の描画（keyカラムとcontentカラムの区切り）
     draw.line(
-        [(KEY_COLUMN_WIDTH, 0), (KEY_COLUMN_WIDTH, IMAGE_HEIGHT)],
+        [(KEY_COLUMN_WIDTH, MARGIN), (KEY_COLUMN_WIDTH, IMAGE_HEIGHT - MARGIN)],
         fill=(0, 0, 0),
         width=1,
     )
@@ -137,7 +137,7 @@ def get_image(
         if index < total_entries - 1:
             line_y = y_position + entry_height
             draw.line(
-                [(0, line_y), (IMAGE_WIDTH, line_y)],
+                [(MARGIN, line_y), (IMAGE_WIDTH - MARGIN, line_y)],
                 fill=(0, 0, 0),
                 width=1,
             )
