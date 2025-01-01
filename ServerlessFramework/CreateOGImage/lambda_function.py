@@ -25,10 +25,23 @@ IMAGE_WIDTH: Final[int] = 1200
 IMAGE_HEIGHT: Final[int] = 630
 KEY_COLUMN_WIDTH: Final[int] = 220
 CONTENT_COLUMN_WIDTH: Final[int] = IMAGE_WIDTH - KEY_COLUMN_WIDTH
-MARGIN: Final[int] = 20
-LINE_HEIGHT: Final[int] = 30  # フォントサイズ20px + 行間10px
-LINE_MARGIN: Final[int] = LINE_HEIGHT - MARGIN
 FONT_SIZE: Final[int] = 20
+WIDTH_MARGIN: Final[int] = 20
+HEIGHT_MARGIN: Final[int] = 20
+AVAILABLE_HEIGHT: Final[int] = IMAGE_HEIGHT - (2 * HEIGHT_MARGIN)
+
+"""
+画像作成アルゴリズムは以下の通り
+1. まず、[IMAGE_WIDTH]px * [IMAGE_HEIGHT]pxの下地の画像を作成
+2. 次に、([KEY_COLUMN_WIDTH], [HEIGHT_MARGIN])から([KEY_COLUMN_WIDTH], [IMAGE_HEIGHT] - [HEIGHT_MARGIN])までの縦線を引く
+3. 次に、エントリーごとの横区切り線を以下の手順で書く
+- LINE_HEIGHT = [AVAILABLE_HEIGHT] / [ENTRY_COUNT]
+- まず、([WIDTH_MARGIN], [HEIGHT_MARGIN + LINE_HEIGHT])から([IMAGE_WIDTH-WIDTH_MARGIN], [HEIGHT_MARGIN + LINE_HEIGHT])までの横線を引く
+- 次に、([WIDTH_MARGIN], [HEIGHT_MARGIN + LINE_HEIGHT + LINE_HEIGHT])から([IMAGE_WIDTH-WIDTH_MARGIN], [HEIGHT_MARGIN + LINE_HEIGHT + LINE_HEIGHT])までの横線を引く
+- 次に、([WIDTH_MARGIN], [HEIGHT_MARGIN + LINE_HEIGHT + LINE_HEIGHT + LINE_HEIGHT])から([IMAGE_WIDTH-WIDTH_MARGIN], [HEIGHT_MARGIN + LINE_HEIGHT + LINE_HEIGHT + LINE_HEIGHT])までの横線を引く
+....
+4. 次に、エントリーごとのキーとコンテンツを書く
+"""
 
 def get_supabase_secret():
 
@@ -87,35 +100,37 @@ def get_image(
 
     # 縦線の描画（keyカラムとcontentカラムの区切り）
     draw.line(
-        [(KEY_COLUMN_WIDTH, MARGIN), (KEY_COLUMN_WIDTH, IMAGE_HEIGHT - MARGIN)],
+        [(KEY_COLUMN_WIDTH, HEIGHT_MARGIN), (KEY_COLUMN_WIDTH, IMAGE_HEIGHT - HEIGHT_MARGIN)],
         fill=(0, 0, 0),
         width=1,
     )
 
     # エントリごとの高さを計算
     total_entries = len(table_data)
-    available_height = IMAGE_HEIGHT - (2 * MARGIN)  # 上下マージンを除いた利用可能な高さ
-    entry_height = available_height // total_entries
-    inner_margin = 10  # エントリ内の上下マージン
+    available_height = IMAGE_HEIGHT - (2 * HEIGHT_MARGIN)  # 上下マージンを除いた利用可能な高さ
+    line_height = available_height // total_entries
+    
+    # エントリの数-1個の横区切り線を引く
+    for i in range(total_entries - 1):
+        draw.line(
+            [
+                (WIDTH_MARGIN, HEIGHT_MARGIN + (line_height * (i + 1))),
+                (IMAGE_WIDTH - WIDTH_MARGIN, HEIGHT_MARGIN + (line_height * (i + 1)))
+            ],
+            fill=(0, 0, 0),
+            width=1,
+        )
 
     # 各エントリの描画
     for index, (key, content) in enumerate(table_data.items()):
         # エントリの開始Y座標を計算
-        y_position = MARGIN + (index * entry_height)
-        
-        # キーの描画
-        key_lines = textwrap.wrap(key, width=15)  # 300pxに収まる概算の文字数
-        if key_lines:
-            if len(key_lines) > 2:
-                key_text = key_lines[0] + "..."
-            else:
-                key_text = key_lines[0]
-            draw.text(
-                (MARGIN, y_position + inner_margin),
-                key_text,
-                font=font,
-                fill=(0, 0, 0)
-            )
+        y_position = HEIGHT_MARGIN + (index * line_height)
+        draw.text(
+            (WIDTH_MARGIN, y_position),
+            key,
+            font=font,
+            fill=(0, 0, 0)
+        )
 
         # コンテンツの描画
         content_lines = textwrap.wrap(content, width=45)  # 900pxに収まる概算の文字数
@@ -126,20 +141,12 @@ def get_image(
                 content_text = content_lines[0] + "\n" + content_lines[1]
             else:
                 content_text = content_lines[0]
+            
             draw.text(
-                (KEY_COLUMN_WIDTH + MARGIN, y_position + inner_margin),
+                (KEY_COLUMN_WIDTH + WIDTH_MARGIN, y_position),
                 content_text,
                 font=font,
                 fill=(0, 0, 0)
-            )
-
-        # 横線の描画（最終エントリ以外）
-        if index < total_entries - 1:
-            line_y = y_position + entry_height
-            draw.line(
-                [(MARGIN, line_y), (IMAGE_WIDTH - MARGIN, line_y)],
-                fill=(0, 0, 0),
-                width=1,
             )
 
     im.save(TEMP_FILE_PATH.format(post_id), quality=95)
@@ -196,6 +203,7 @@ test_posts = [
             "Who(誰が)": "これは長いキーに対応する通常の内容です",
             "When(いつ)": "この文章は非常に長い内容を含んでおり、一行に収まらないようになっています。具体的には、先週の木曜日の午後3時15分ごろのことでした。",
             "Where(どこで)": "場所は東京都新宿区の某有名カフェで、窓際の席に座っていた時のことです。外は小雨が降っていて、傘を持っていなかったことを少し後悔していました。",
+            "Why(なぜ)": "このテストデータは、システムが長文をどのように処理するかを確認するためのものです。特に、省略記号（...）が適切に表示されるかどうかを検証します。",
             "What(何を)": "このテストデータは、システムが長文をどのように処理するかを確認するためのものです。特に、省略記号（...）が適切に表示されるかどうかを検証します。",
             "How(どのように)": "突然、隣のテーブルから大きな物音がしたかと思うと、誰かが「すみません！」と叫ぶ声が聞こえました。振り返ってみると、若い女性がコーヒーをこぼしてしまったようでした。",
             "Then(どうなった)": "結果として、このテストケースによって、システムが長文を適切に処理し、見やすい形で表示できることが確認できました。また、複数行のテキストが省略記号で適切に切り詰められることも確認できました。"
