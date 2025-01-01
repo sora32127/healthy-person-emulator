@@ -126,7 +126,7 @@ def get_image(
         # エントリの開始Y座標を計算
         y_position = HEIGHT_MARGIN + (index * line_height)
         draw.text(
-            (WIDTH_MARGIN, y_position),
+            (WIDTH_MARGIN, y_position + line_height//3),
             key,
             font=font,
             fill=(0, 0, 0)
@@ -143,7 +143,8 @@ def get_image(
                 content_text = content_lines[0]
             
             draw.text(
-                (KEY_COLUMN_WIDTH + WIDTH_MARGIN, y_position),
+                (KEY_COLUMN_WIDTH + WIDTH_MARGIN,
+                 y_position + line_height//3 if len(content_lines) == 1 else y_position + line_height//6),
                 content_text,
                 font=font,
                 fill=(0, 0, 0)
