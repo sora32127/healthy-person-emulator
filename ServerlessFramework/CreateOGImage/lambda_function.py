@@ -44,24 +44,11 @@ AVAILABLE_HEIGHT: Final[int] = IMAGE_HEIGHT - (2 * HEIGHT_MARGIN)
 """
 
 def get_supabase_secret():
-
-    secret_name = "SUPABASE_CONNECTION_SECRET"
-    region_name = "ap-northeast-1"
-
-    session = boto3.session.Session()
-    client = session.client(
-        service_name='secretsmanager',
-        region_name=region_name
+    client = boto3.client("secretsmanager")
+    response = client.get_secret_value(
+        SecretId="SUPABASE_CONNECTION_SECRET"
     )
-
-    try:
-        get_secret_value_response = client.get_secret_value(
-            SecretId=secret_name
-        )
-    except ClientError as e:
-        raise e
-
-    secret = get_secret_value_response['SecretString']
+    secret = response['SecretString']
     return json.loads(secret)
 
 def poll_supabase_for_new_posts(secrets):
