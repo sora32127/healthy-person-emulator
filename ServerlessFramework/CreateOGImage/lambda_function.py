@@ -82,7 +82,7 @@ def get_image(
     font = ImageFont.truetype(FONT_FILE_PATH, FONT_SIZE)
 
     # 固定サイズの画像を作成
-    im = Image.new("RGB", (IMAGE_WIDTH, IMAGE_HEIGHT), (255, 255, 255))
+    im = Image.new("RGB", (IMAGE_WIDTH, IMAGE_HEIGHT), (245, 245, 245))
     draw = ImageDraw.Draw(im)
 
     # 縦線の描画（keyカラムとcontentカラムの区切り）
