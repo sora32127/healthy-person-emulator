@@ -1,3 +1,4 @@
+import math
 from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
@@ -101,7 +102,7 @@ def get_image(
         y_position += LINE_MARGIN
 
         # keyの折り返しと描画
-        key_lines = textwrap.wrap(key, width=int(KEY_COLUMN_WIDTH/FONT_SIZE))  # 300pxに収まる概算の文字数
+        key_lines = textwrap.wrap(key, width=math.ceil(KEY_COLUMN_WIDTH/FONT_SIZE))  # 300pxに収まる概算の文字数
         y_position_tmp_key = y_position
         for key_line in key_lines:
             draw.text((MARGIN, y_position_tmp_key), key_line, font=font, fill=(0, 0, 0))
@@ -109,7 +110,7 @@ def get_image(
 
         # contentの折り返しと描画
         y_position_tmp_content = y_position
-        content_lines = textwrap.wrap(content, width=int(CONTENT_COLUMN_WIDTH/FONT_SIZE))  # 900pxに収まる概算の文字数
+        content_lines = textwrap.wrap(content, width=math.ceil((CONTENT_COLUMN_WIDTH - MARGIN * 2)/FONT_SIZE))  # 900pxに収まる概算の文字数
         for content_line in content_lines:
             draw.text((KEY_COLUMN_WIDTH + MARGIN, y_position_tmp_content), content_line, font=font, fill=(0, 0, 0))
             y_position_tmp_content += LINE_HEIGHT
