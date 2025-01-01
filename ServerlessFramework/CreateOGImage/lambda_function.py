@@ -60,14 +60,9 @@ def get_text_data(post_content: str) -> List[Dict[str, str]]:
     return table_data
 
 
-def get_image(post_id:int, table_data: Dict[str,str]) -> List[Dict[str, str]]:
-    if "Who(誰が)" in table_data.keys():
-        get_image_by_ratio(1 / 3, 2 / 3, table_data, post_id)
-    else:
-        # 例外の場合は1:1の比率で画像を作成する
-        get_image_by_ratio(1 / 2, 1 / 2, table_data, post_id)
-    
-    return f"https://{S3_BUCKET_NAME}.s3-ap-northeast-1.amazonaws.com/{post_id}.jpg"
+def get_image(post_id:int, table_data: Dict[str,str]) -> None:
+    get_image_by_ratio(1 / 3, 2 / 3, table_data, post_id)
+    return
 
 def get_image_by_ratio(
     key_length_ratio: float, content_length_ratio: float, table_data: Dict[str, str], post_id:int
@@ -203,7 +198,10 @@ def lambda_handler(event, context):
             table_data = get_text_data(
                 post_content=post_content
             )
-            s3_url = get_image(post_id=post_id, table_data=table_data)
+            
+            get_image(post_id=post_id, table_data=table_data)
+            s3_url = f"https://{S3_BUCKET_NAME}.s3-ap-northeast-1.amazonaws.com/{post_id}.jpg"
+            
             if not IS_PRODUCTION:
                 return
             update_postgres_ogp_url(post_id=post_id, s3_url=s3_url, secrets=secrets)
