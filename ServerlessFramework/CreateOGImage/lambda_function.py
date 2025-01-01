@@ -27,6 +27,7 @@ FONT_SIZE: Final[int] = 30
 WIDTH_MARGIN: Final[int] = 20
 HEIGHT_MARGIN: Final[int] = 20
 AVAILABLE_HEIGHT: Final[int] = IMAGE_HEIGHT - (2 * HEIGHT_MARGIN)
+UPPER_PADDING_RATIO: Final[float] = 0.65 # 上方向のパディングを調整する比率
 
 """
 画像作成アルゴリズムは以下の通り
@@ -119,8 +120,14 @@ def get_image(
         line_height = unit_height * get_key_weight(key)
         is_double_height = get_key_weight(key) == 2
 
+        # キーのテキストボックスサイズを取得
+        key_bbox = draw.textbbox((0, 0), key, font=font)
+        key_height = key_bbox[3] - key_bbox[1]
+        key_padding = (line_height - key_height) / 2
+        # 上方向のパディングを調整（約10%減少）
+        key_y = current_y + key_padding * UPPER_PADDING_RATIO
+
         # キーの描画
-        key_y = current_y + (line_height//10 if is_double_height else line_height//5)
         draw.text(
             (WIDTH_MARGIN, key_y),
             key,
@@ -142,11 +149,20 @@ def get_image(
                 else:
                     content_text = content_lines[0]
                 
-                content_y = current_y + line_height//10
+                # 2行テキストの場合の高さ計算
+                content_bbox = draw.multiline_textbbox((0, 0), content_text, font=font)
+                content_height = content_bbox[3] - content_bbox[1]
+                content_padding = (line_height - content_height) / 2
+                # 上方向のパディングを調整（約10%減少）
+                content_y = current_y + content_padding * UPPER_PADDING_RATIO
             else:
                 # 1行のみの場合
                 content_text = content_lines[0] + ("..." if len(content_lines) > 1 else "")
-                content_y = current_y + line_height//5
+                content_bbox = draw.textbbox((0, 0), content_text, font=font)
+                content_height = content_bbox[3] - content_bbox[1]
+                content_padding = (line_height - content_height) / 2
+                # 上方向のパディングを調整（約10%減少）
+                content_y = current_y + content_padding * UPPER_PADDING_RATIO
 
             draw.text(
                 (KEY_COLUMN_WIDTH + WIDTH_MARGIN, content_y),
