@@ -52,12 +52,11 @@ def get_supabase_secret():
 
 def poll_supabase_for_new_posts(secrets):
     client: Client = create_client(secrets["SUPABASE_URL"], secrets["SUPABASE_SERVICE_ROLE_KEY"])
-    if not IS_PRODUCTION:
-        test_posts = client.table("dim_posts").select("post_id,post_content,post_title").eq("post_id", 20028).execute()
-        return test_posts.data
     one_day_ago = datetime.datetime.now() - datetime.timedelta(hours=24)
     posts = client.table("dim_posts").select("post_id,post_content,post_title").gte('post_date_gmt', one_day_ago).eq("is_sns_shared", False).eq("is_welcomed", True).execute()
-    return posts.data
+    data = posts.data
+    data.post_content = get_text_data(data.post_content)
+    return data
 
 def get_text_data(post_content: str) -> List[Dict[str, str]]:
     soup = BeautifulSoup(post_content, "html.parser")
@@ -158,10 +157,40 @@ def invoke_sns_post(post_title, post_url, og_url, post_id):
     )
     return
 
+
+test_posts = [
+    {
+        "post_id": 1,
+        "post_title": "（通常）",
+        "post_content": {
+        "Who(誰が)": "筆者が",
+        "When(いつ)": "数年前",
+        "Where(どこで)": "実家に帰省した際",
+        "Why(なぜ)": "子供を作ることは子供の未来の幸せを願ってではなく、遺伝子を残すためだけの行為だと考えているので",
+        "What(何を)": "迎えに来てくれた父親に対して",
+        "How(どのように)": "兄貴が結婚して子供残しそうだから、スペアの弟である僕は要らなかったねと発言した",
+        "Then(どうなった)": "「そうだな」と悲しそうに肯定された"
+    }
+    },
+    {
+        "post_id": 2,
+        "post_title": "（長文）",
+        "post_content": {
+            "Who(誰が)": "これは長いキーに対応する通常の内容です",
+            "When(いつ)": "この文章は非常に長い内容を含んでおり、一行に収まらないようになっています。具体的には、先週の木曜日の午後3時15分ごろのことでした。",
+            "Where(どこで)": "場所は東京都新宿区の某有名カフェで、窓際の席に座っていた時のことです。外は小雨が降っていて、傘を持っていなかったことを少し後悔していました。",
+            "What(何を)": "このテストデータは、システムが長文をどのように処理するかを確認するためのものです。特に、省略記号（...）が適切に表示されるかどうかを検証します。",
+            "How(どのように)": "突然、隣のテーブルから大きな物音がしたかと思うと、誰かが「すみません！」と叫ぶ声が聞こえました。振り返ってみると、若い女性がコーヒーをこぼしてしまったようでした。",
+            "Then(どうなった)": "結果として、このテストケースによって、システムが長文を適切に処理し、見やすい形で表示できることが確認できました。また、複数行のテキストが省略記号で適切に切り詰められることも確認できました。"
+        }
+    }
+]
+
+
 def lambda_handler(event, context):
     try:
         secrets = get_supabase_secret()
-        posts = poll_supabase_for_new_posts(secrets)
+        posts = poll_supabase_for_new_posts(secrets) if IS_PRODUCTION else test_posts
         if len(posts) == 0:
             logger.setLevel("INFO")
             logger.info("There are no posts to create OG Image.")
@@ -170,18 +199,14 @@ def lambda_handler(event, context):
         for post in posts:
             post_id = post["post_id"]
             post_title = post["post_title"]
-            post_content = post["post_content"]
             post_url = f"https://healthy-person-emulator.org/archives/{post_id}"
             if re.match(r"^.*プログラムテスト.*$", post_title):
                 continue
-            table_data = get_text_data(
-                post_content=post_content
-            )            
-            get_image(post_id=post_id, table_data=table_data)
+            get_image(post_id=post_id, table_data=post["post_content"])
             s3_url = f"https://{S3_BUCKET_NAME}.s3-ap-northeast-1.amazonaws.com/{post_id}.jpg"
             
             if not IS_PRODUCTION:
-                return
+                continue
             update_postgres_ogp_url(post_id=post_id, s3_url=s3_url, secrets=secrets)
             post_url = f"https://healthy-person-emulator.org/archives/{post_id}"
             invoke_sns_post(post_title=post_title, post_url=post_url, og_url=s3_url, post_id=post_id)
@@ -191,7 +216,9 @@ def lambda_handler(event, context):
         logger.setLevel("ERROR")
         logger.error(e)
         raise e
+
     
 
 if __name__ == "__main__":
     lambda_handler(None, None)
+    
