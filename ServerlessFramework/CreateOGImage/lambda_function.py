@@ -305,8 +305,38 @@ def lambda_handler(event, context):
         logger.error(e)
         raise e
 
-    
-
+def batch_update(start_id:int, end_id:int):
+    supabase_secrets = get_supabase_secret()
+    client: Client = create_client(supabase_secrets["SUPABASE_URL"], supabase_secrets["SUPABASE_SERVICE_ROLE_KEY"])
+    post_count = client.table("dim_posts").select("*", count="exact").gte("post_id", start_id).lte("post_id", end_id).execute()
+    print(f"post_count: {post_count.count}")
+    print(f"Num of batch: {post_count.count // 50}")
+    minimum_id = start_id
+    # 50件ずつ更新する
+    for i in range(0, post_count.count, 50):
+        batch_id = i // 50
+        print(f"batch {batch_id} is processing...")
+        posts = client.table("dim_posts").select("post_id,post_content").\
+            gte("post_id", minimum_id)\
+            .lte("post_id", end_id)\
+            .order("post_id")\
+            .limit(50)\
+            .execute()
+        print(f"batch {batch_id} Count: {len(posts.data)}")
+        print(f"batch {batch_id} Min ID: {posts.data[0]['post_id']}, Max ID: {posts.data[-1]['post_id']}")
+        for post in posts.data:
+            try: 
+                post_id = post["post_id"]
+                post_content = get_text_data(post["post_content"])
+                get_image(post_id=post_id, table_data=post_content)
+                upload_to_s3(post_id=post_id)
+            except Exception as e:
+                print(f"post_id: {post_id} is failed to create OG Image.")
+                with open(f"2025-01-01-OGP.txt", "a") as f:
+                    f.write(f"post_id: {post_id} is failed to create OG Image.\n")
+        print(f"batch {i // 50} is completed.")
+        minimum_id = posts.data[-1]["post_id"]
+        
 if __name__ == "__main__":
-    lambda_handler(None, None)
-    
+
+    batch_update(30000, 50000)
