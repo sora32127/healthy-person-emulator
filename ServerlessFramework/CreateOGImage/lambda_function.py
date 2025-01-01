@@ -92,36 +92,52 @@ def get_image(
         width=1,
     )
 
-    # 利用可能な最大行数を計算
-    max_lines = (IMAGE_HEIGHT - (2 * MARGIN)) // LINE_HEIGHT
+    # エントリごとの高さを計算
+    total_entries = len(table_data)
+    available_height = IMAGE_HEIGHT - (2 * MARGIN)  # 上下マージンを除いた利用可能な高さ
+    entry_height = available_height // total_entries
+    inner_margin = 10  # エントリ内の上下マージン
 
-    y_position = MARGIN
-    for key, content in table_data.items():
-        if y_position + LINE_HEIGHT > IMAGE_HEIGHT - MARGIN:
-            break
-        y_position += LINE_MARGIN
+    # 各エントリの描画
+    for index, (key, content) in enumerate(table_data.items()):
+        # エントリの開始Y座標を計算
+        y_position = MARGIN + (index * entry_height)
+        
+        # キーの描画
+        key_lines = textwrap.wrap(key, width=15)  # 300pxに収まる概算の文字数
+        if key_lines:
+            if len(key_lines) > 2:
+                key_text = key_lines[0] + "..."
+            else:
+                key_text = key_lines[0]
+            draw.text(
+                (MARGIN, y_position + inner_margin),
+                key_text,
+                font=font,
+                fill=(0, 0, 0)
+            )
 
-        # keyの折り返しと描画
-        key_lines = textwrap.wrap(key, width=math.ceil(KEY_COLUMN_WIDTH/FONT_SIZE))  # 300pxに収まる概算の文字数
-        y_position_tmp_key = y_position
-        for key_line in key_lines:
-            draw.text((MARGIN, y_position_tmp_key), key_line, font=font, fill=(0, 0, 0))
-            y_position_tmp_key += LINE_HEIGHT
+        # コンテンツの描画
+        content_lines = textwrap.wrap(content, width=45)  # 900pxに収まる概算の文字数
+        if content_lines:
+            if len(content_lines) > 2:
+                content_text = content_lines[0] + "\n" + content_lines[1] + "..."
+            elif len(content_lines) == 2:
+                content_text = content_lines[0] + "\n" + content_lines[1]
+            else:
+                content_text = content_lines[0]
+            draw.text(
+                (KEY_COLUMN_WIDTH + MARGIN, y_position + inner_margin),
+                content_text,
+                font=font,
+                fill=(0, 0, 0)
+            )
 
-        # contentの折り返しと描画
-        y_position_tmp_content = y_position
-        content_lines = textwrap.wrap(content, width=math.ceil((CONTENT_COLUMN_WIDTH - MARGIN * 2)/FONT_SIZE))  # 900pxに収まる概算の文字数
-        for content_line in content_lines:
-            draw.text((KEY_COLUMN_WIDTH + MARGIN, y_position_tmp_content), content_line, font=font, fill=(0, 0, 0))
-            y_position_tmp_content += LINE_HEIGHT
-
-
-        y_position = max(y_position, y_position_tmp_content)
-
-        # 横線の描画（最終行以外）
-        if y_position < IMAGE_HEIGHT - MARGIN and key != list(table_data.keys())[-1]:
+        # 横線の描画（最終エントリ以外）
+        if index < total_entries - 1:
+            line_y = y_position + entry_height
             draw.line(
-                [(0, y_position), (IMAGE_WIDTH, y_position)],
+                [(0, line_y), (IMAGE_WIDTH, line_y)],
                 fill=(0, 0, 0),
                 width=1,
             )
@@ -196,6 +212,18 @@ test_posts = [
             "What(何を)": "このテストデータは、システムの様々な側面をテストすることを目的としています。具体的には、文字列の折り返し処理、省略記号の表示、レイアウトの調整、文字数制限の処理、そして全体的なデザインの一貫性などを検証します。特に、日本語と英語が混在する場合の処理や、記号類が含まれる場合の表示についても確認が必要です。",
             "How(どのように)": "突然、隣のテーブルから大きな物音がしたかと思うと、誰かが「申し訳ありません！」と叫ぶ声が聞こえました。振り返ってみると、若い女性がコーヒーをこぼしてしまったようでした。周りのお客さんが慌てて立ち上がり、ティッシュやハンカチを差し出していました。店員さんも素早く対応し、新しいドリンクを提供していました。このような予期せぬ出来事に、カフェにいた全員が思い思いの方法で対応を示していたのです。",
             "Then(どうなった)": "結果として、このテストケースによって、システムが超長文を適切に処理し、見やすい形で表示できることが確認できました。また、複数行のテキストが省略記号で適切に切り詰められることも確認できました。さらに、日本語と英語が混在する文章、記号類を含む文章、段落を含む文章など、様々なパターンの文章に対してシステムが適切に対応できることも検証できました。このテストケースは、システムの堅牢性と柔軟性を実証する上で非常に重要な役割を果たしました。"
+        }
+    },
+    {
+        "post_id": 4,
+        "post_title": "（Thenがない）",
+        "post_content": {
+            "Who(誰が)": "筆者が",
+            "When(いつ)": "数年前",
+            "Where(どこで)": "実家に帰省した際",
+            "Why(なぜ)": "子供を作ることは子供の未来の幸せを願ってではなく、遺伝子を残すためだけの行為だと考えているので",
+            "What(何を)": "迎えに来てくれた父親に対して",
+            "How(どのように)": "兄貴が結婚して子供残しそうだから、スペアの弟である僕は要らなかったねと発言した",
         }
     }
 ]
