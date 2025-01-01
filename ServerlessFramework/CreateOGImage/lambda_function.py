@@ -20,6 +20,15 @@ TEMP_FILE_PATH: Final[str] = "/tmp/{}.jpg" if IS_PRODUCTION else "./tmp/{}.jpg"
 
 logger = logging.getLogger()
 
+IMAGE_WIDTH: Final[int] = 1200
+IMAGE_HEIGHT: Final[int] = 630
+KEY_COLUMN_WIDTH: Final[int] = 220
+CONTENT_COLUMN_WIDTH: Final[int] = IMAGE_WIDTH - KEY_COLUMN_WIDTH
+MARGIN: Final[int] = 20
+LINE_HEIGHT: Final[int] = 30  # フォントサイズ20px + 行間10px
+LINE_MARGIN: Final[int] = LINE_HEIGHT - MARGIN
+FONT_SIZE: Final[int] = 20
+
 def get_supabase_secret():
 
     secret_name = "SUPABASE_CONNECTION_SECRET"
@@ -60,92 +69,62 @@ def get_text_data(post_content: str) -> List[Dict[str, str]]:
     return table_data
 
 
-def get_image(post_id:int, table_data: Dict[str,str]) -> None:
-    get_image_by_ratio(1 / 3, 2 / 3, table_data, post_id)
-    return
-
-def get_image_by_ratio(
-    key_length_ratio: float, content_length_ratio: float, table_data: Dict[str, str], post_id:int
+def get_image(
+    table_data: Dict[str, str], post_id: int
 ) -> None:
-    if key_length_ratio + content_length_ratio != 1:
-        raise ValueError(
-            "The sum of key_length_ratio and content_length_ratio must be 1."
-        )
-    if key_length_ratio <= 0 or content_length_ratio <= 0:
-        raise ValueError("key_length_ratio and content_length_ratio must be positive.")
-        # 大枠の画像を作成する：開始
 
-    # 30かけて、整数ではない場合はエラーを出す
-    candidate_list = [i / 30 for i in range(1, 31)]
-    if key_length_ratio not in candidate_list:
-        raise ValueError("key_length_ratio must be a multiple of 30.")
-
-    # FONT_FILE_PATHにファイルが存在することを確認する
     try:
         with open(FONT_FILE_PATH):
             pass
     except FileNotFoundError:
         raise FileNotFoundError("The specified font file does not exist.")
 
-    font = ImageFont.truetype(FONT_FILE_PATH, 20)
+    font = ImageFont.truetype(FONT_FILE_PATH, FONT_SIZE)
 
-    ## 画像の高さを計算する
-    image_hight = 0
-    for key, content in table_data.items():
-        key_line_count = len(textwrap.wrap(key, width=int(30 * key_length_ratio)))
-        content_line_count = len(
-            textwrap.wrap(content, width=int(30 * content_length_ratio))
-        )
-        line_count = max(key_line_count, content_line_count)
-        image_hight += line_count * 20
-        image_hight += 10  # 余白として、上に5px、下に5px追加する
-
-    ## 画像の高さの計算：終了
-    image_width = (
-        620  # 600 + 左余白5px + keyとcontentの間の線の左右に5pxずつ + 右余白5px
-    )
-    im = Image.new("RGB", (image_width, image_hight), (255, 255, 255))
+    # 固定サイズの画像を作成
+    im = Image.new("RGB", (IMAGE_WIDTH, IMAGE_HEIGHT), (255, 255, 255))
     draw = ImageDraw.Draw(im)
-    ## 縦線の描画
+
+    # 縦線の描画（keyカラムとcontentカラムの区切り）
     draw.line(
-        [(int(620 * key_length_ratio), 0), (int(620 * key_length_ratio), image_hight)],
+        [(KEY_COLUMN_WIDTH, 0), (KEY_COLUMN_WIDTH, IMAGE_HEIGHT)],
         fill=(0, 0, 0),
         width=1,
     )
 
-    # 大枠の画像を作成する：終了
+    # 利用可能な最大行数を計算
+    max_lines = (IMAGE_HEIGHT - (2 * MARGIN)) // LINE_HEIGHT
 
-    # テキストを描画する：開始
-    y_position = 0
+    y_position = MARGIN
     for key, content in table_data.items():
-        y_position += 5  # 余白として、上に5px追加する
-        y_position_tmp = y_position
+        if y_position + LINE_HEIGHT > IMAGE_HEIGHT - MARGIN:
+            break
+        y_position += LINE_MARGIN
 
-        ## keyの描画
-        key_lines = textwrap.wrap(key, width=int(30 * key_length_ratio))
-        y_position_tmp_key = y_position_tmp
-        for line in key_lines:
-            draw.text((5, y_position_tmp_key), line, font=font, fill=(0, 0, 0))
-            y_position_tmp_key += 20
+        # keyの折り返しと描画
+        key_lines = textwrap.wrap(key, width=int(KEY_COLUMN_WIDTH/FONT_SIZE))  # 300pxに収まる概算の文字数
+        y_position_tmp_key = y_position
+        for key_line in key_lines:
+            draw.text((MARGIN, y_position_tmp_key), key_line, font=font, fill=(0, 0, 0))
+            y_position_tmp_key += LINE_HEIGHT
 
-        ## contentの描画
-        content_lines = textwrap.wrap(content, width=int(30 * content_length_ratio))
-        y_position_tmp_content = y_position_tmp
-        for line in content_lines:
-            draw.text(
-                (620 * key_length_ratio + 5, y_position_tmp_content),
-                line,
-                font=font,
+        # contentの折り返しと描画
+        y_position_tmp_content = y_position
+        content_lines = textwrap.wrap(content, width=int(CONTENT_COLUMN_WIDTH/FONT_SIZE))  # 900pxに収まる概算の文字数
+        for content_line in content_lines:
+            draw.text((KEY_COLUMN_WIDTH + MARGIN, y_position_tmp_content), content_line, font=font, fill=(0, 0, 0))
+            y_position_tmp_content += LINE_HEIGHT
+
+
+        y_position = max(y_position, y_position_tmp_content)
+
+        # 横線の描画（最終行以外）
+        if y_position < IMAGE_HEIGHT - MARGIN and key != list(table_data.keys())[-1]:
+            draw.line(
+                [(0, y_position), (IMAGE_WIDTH, y_position)],
                 fill=(0, 0, 0),
+                width=1,
             )
-            y_position_tmp_content += 20
-
-        y_position = max(y_position_tmp_key, y_position_tmp_content)
-        y_position += 5  # 余白として、下に5px追加する
-
-        ## 横線の描画は最終要素でない場合にのみ行う
-        if key != list(table_data.keys())[-1]:
-            draw.line([(0, y_position), (600, y_position)], fill=(0, 0, 0), width=1)
 
     im.save(TEMP_FILE_PATH.format(post_id), quality=95)
     
@@ -197,8 +176,7 @@ def lambda_handler(event, context):
                 continue
             table_data = get_text_data(
                 post_content=post_content
-            )
-            
+            )            
             get_image(post_id=post_id, table_data=table_data)
             s3_url = f"https://{S3_BUCKET_NAME}.s3-ap-northeast-1.amazonaws.com/{post_id}.jpg"
             
