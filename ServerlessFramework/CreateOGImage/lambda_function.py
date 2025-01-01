@@ -122,14 +122,17 @@ def get_image(
 
         # キーのテキストボックスサイズを取得
         key_bbox = draw.textbbox((0, 0), key, font=font)
+        key_width = key_bbox[2] - key_bbox[0]
         key_height = key_bbox[3] - key_bbox[1]
         key_padding = (line_height - key_height) / 2
-        # 上方向のパディングを調整（約10%減少）
+        
+        # キーの描画位置を右揃えに調整
+        key_x = KEY_COLUMN_WIDTH - WIDTH_MARGIN - key_width
         key_y = current_y + key_padding * UPPER_PADDING_RATIO
 
         # キーの描画
         draw.text(
-            (WIDTH_MARGIN, key_y),
+            (key_x, key_y),
             key,
             font=font,
             fill=(0, 0, 0)
