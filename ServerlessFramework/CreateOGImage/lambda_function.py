@@ -9,9 +9,14 @@ import re
 from supabase import create_client, Client
 import logging
 import datetime
+import os
 
-FONT_FILE_PATH: Final[str] = "./BIZ-UDGOTHICB.TTC"
+
+IS_PRODUCTION = os.getenv('AWS_LAMBDA_FUNCTION_NAME') is not None
+
 S3_BUCKET_NAME: Final[str] = "healthy-person-emulator-public-assets"
+FONT_FILE_PATH: Final[str] = "./BIZ-UDGOTHICB.TTC" if IS_PRODUCTION else "ServerlessFramework/CreateOGImage/BIZ-UDGOTHICB.TTC"
+TEMP_FILE_PATH: Final[str] = "/tmp/{}.jpg" if IS_PRODUCTION else "./tmp/{}.jpg"
 
 logger = logging.getLogger()
 
@@ -38,6 +43,9 @@ def get_supabase_secret():
 
 def poll_supabase_for_new_posts(secrets):
     client: Client = create_client(secrets["SUPABASE_URL"], secrets["SUPABASE_SERVICE_ROLE_KEY"])
+    if not IS_PRODUCTION:
+        test_posts = client.table("dim_posts").select("post_id,post_content,post_title").eq("post_id", 20028).execute()
+        return test_posts.data
     one_day_ago = datetime.datetime.now() - datetime.timedelta(hours=24)
     posts = client.table("dim_posts").select("post_id,post_content,post_title").gte('post_date_gmt', one_day_ago).eq("is_sns_shared", False).eq("is_welcomed", True).execute()
     return posts.data
@@ -144,11 +152,14 @@ def get_image_by_ratio(
         if key != list(table_data.keys())[-1]:
             draw.line([(0, y_position), (600, y_position)], fill=(0, 0, 0), width=1)
 
-    im.save("/tmp/{}.jpg".format(post_id), quality=95)
+    im.save(TEMP_FILE_PATH.format(post_id), quality=95)
+    
+    if not IS_PRODUCTION:
+        return
 
     s3 = boto3.client("s3")
     s3.upload_file(
-        "/tmp/{}.jpg".format(post_id),
+        TEMP_FILE_PATH.format(post_id),
         S3_BUCKET_NAME,
         "{}.jpg".format(post_id)
     )
@@ -193,6 +204,8 @@ def lambda_handler(event, context):
                 post_content=post_content
             )
             s3_url = get_image(post_id=post_id, table_data=table_data)
+            if not IS_PRODUCTION:
+                return
             update_postgres_ogp_url(post_id=post_id, s3_url=s3_url, secrets=secrets)
             post_url = f"https://healthy-person-emulator.org/archives/{post_id}"
             invoke_sns_post(post_title=post_title, post_url=post_url, og_url=s3_url, post_id=post_id)
