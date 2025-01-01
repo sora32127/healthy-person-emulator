@@ -120,7 +120,7 @@ def get_image(
         is_double_height = get_key_weight(key) == 2
 
         # キーの描画
-        key_y = current_y + (line_height//6 if is_double_height else line_height//3)
+        key_y = current_y + (line_height//10 if is_double_height else line_height//5)
         draw.text(
             (WIDTH_MARGIN, key_y),
             key,
@@ -142,11 +142,11 @@ def get_image(
                 else:
                     content_text = content_lines[0]
                 
-                content_y = current_y + line_height//6
+                content_y = current_y + line_height//10
             else:
                 # 1行のみの場合
                 content_text = content_lines[0] + ("..." if len(content_lines) > 1 else "")
-                content_y = current_y + line_height//3
+                content_y = current_y + line_height//5
 
             draw.text(
                 (KEY_COLUMN_WIDTH + WIDTH_MARGIN, content_y),
