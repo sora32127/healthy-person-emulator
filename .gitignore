@@ -1,3 +1,4 @@
 ServerlessFramework/.serverless
 ServerlessFramework/.env
 node_modules
+tmp
