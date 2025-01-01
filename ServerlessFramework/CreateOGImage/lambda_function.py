@@ -21,9 +21,9 @@ logger = logging.getLogger()
 
 IMAGE_WIDTH: Final[int] = 1200
 IMAGE_HEIGHT: Final[int] = 630
-KEY_COLUMN_WIDTH: Final[int] = 250
+KEY_COLUMN_WIDTH: Final[int] = 270
 CONTENT_COLUMN_WIDTH: Final[int] = IMAGE_WIDTH - KEY_COLUMN_WIDTH
-FONT_SIZE: Final[int] = 25
+FONT_SIZE: Final[int] = 30
 WIDTH_MARGIN: Final[int] = 20
 HEIGHT_MARGIN: Final[int] = 20
 AVAILABLE_HEIGHT: Final[int] = IMAGE_HEIGHT - (2 * HEIGHT_MARGIN)
@@ -89,6 +89,13 @@ def get_image(
     im = Image.new("RGB", (IMAGE_WIDTH, IMAGE_HEIGHT), (245, 245, 245))
     draw = ImageDraw.Draw(im)
 
+    # 各キーの重みを定義
+    def get_key_weight(key: str) -> int:
+        return 2 if key in ["Then(どうした)", "Why(なぜ)"] else 1
+    
+    total_weight = sum(get_key_weight(key) for key in table_data.keys())
+    unit_height = AVAILABLE_HEIGHT // total_weight
+
     # 縦線の描画（keyカラムとcontentカラムの区切り）
     draw.line(
         [(KEY_COLUMN_WIDTH, HEIGHT_MARGIN), (KEY_COLUMN_WIDTH, IMAGE_HEIGHT - HEIGHT_MARGIN)],
@@ -96,50 +103,59 @@ def get_image(
         width=1,
     )
 
-    # エントリごとの高さを計算
-    total_entries = len(table_data)
-    available_height = IMAGE_HEIGHT - (2 * HEIGHT_MARGIN)  # 上下マージンを除いた利用可能な高さ
-    line_height = available_height // total_entries
-    
-    # エントリの数-1個の横区切り線を引く
-    for i in range(total_entries - 1):
+    # 横線の描画位置を計算
+    current_y = HEIGHT_MARGIN
+    for key in list(table_data.keys())[:-1]:  # 最後のエントリーの後には線を引かない
+        current_y += unit_height * get_key_weight(key)
         draw.line(
-            [
-                (WIDTH_MARGIN, HEIGHT_MARGIN + (line_height * (i + 1))),
-                (IMAGE_WIDTH - WIDTH_MARGIN, HEIGHT_MARGIN + (line_height * (i + 1)))
-            ],
+            [(WIDTH_MARGIN, current_y), (IMAGE_WIDTH - WIDTH_MARGIN, current_y)],
             fill=(0, 0, 0),
             width=1,
         )
 
-    # 各エントリの描画
-    for index, (key, content) in enumerate(table_data.items()):
-        # エントリの開始Y座標を計算
-        y_position = HEIGHT_MARGIN + (index * line_height)
+    # エントリーの描画
+    current_y = HEIGHT_MARGIN
+    for key, content in table_data.items():
+        line_height = unit_height * get_key_weight(key)
+        is_double_height = get_key_weight(key) == 2
+
+        # キーの描画
+        key_y = current_y + (line_height//6 if is_double_height else line_height//3)
         draw.text(
-            (WIDTH_MARGIN, y_position + line_height//3),
+            (WIDTH_MARGIN, key_y),
             key,
             font=font,
             fill=(0, 0, 0)
         )
 
         # コンテンツの描画
-        content_lines = textwrap.wrap(content, width=(CONTENT_COLUMN_WIDTH - WIDTH_MARGIN * 2)//FONT_SIZE-1)  # 900pxに収まる概算の文字数
+        content_width = (CONTENT_COLUMN_WIDTH - WIDTH_MARGIN * 2) // FONT_SIZE - 1
+        content_lines = textwrap.wrap(content, width=content_width)
+        
         if content_lines:
-            if len(content_lines) > 2:
-                content_text = content_lines[0] + "\n" + content_lines[1] + "..."
-            elif len(content_lines) == 2:
-                content_text = content_lines[0] + "\n" + content_lines[1]
+            if is_double_height:
+                # 2行まで表示可能な場合
+                if len(content_lines) > 2:
+                    content_text = content_lines[0] + "\n" + content_lines[1] + "..."
+                elif len(content_lines) == 2:
+                    content_text = content_lines[0] + "\n" + content_lines[1]
+                else:
+                    content_text = content_lines[0]
+                
+                content_y = current_y + line_height//6
             else:
-                content_text = content_lines[0]
-            
+                # 1行のみの場合
+                content_text = content_lines[0] + ("..." if len(content_lines) > 1 else "")
+                content_y = current_y + line_height//3
+
             draw.text(
-                (KEY_COLUMN_WIDTH + WIDTH_MARGIN,
-                 y_position + line_height//3 if len(content_lines) == 1 else y_position + line_height//10),
+                (KEY_COLUMN_WIDTH + WIDTH_MARGIN, content_y),
                 content_text,
                 font=font,
                 fill=(0, 0, 0)
             )
+
+        current_y += line_height
 
     im.save(TEMP_FILE_PATH.format(post_id), quality=95)    
 
