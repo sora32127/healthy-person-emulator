@@ -16,7 +16,7 @@ import os
 IS_PRODUCTION = os.getenv('AWS_LAMBDA_FUNCTION_NAME') is not None
 
 S3_BUCKET_NAME: Final[str] = "healthy-person-emulator-public-assets"
-FONT_FILE_PATH: Final[str] = "./BIZ-UDGOTHICB.TTC" if IS_PRODUCTION else "ServerlessFramework/CreateOGImage/BIZ-UDGOTHICB.TTC"
+FONT_FILE_PATH: Final[str] = "./NotoSansJP-VariableFont_wght.ttf" if IS_PRODUCTION else "ServerlessFramework/CreateOGImage/NotoSansJP-VariableFont_wght.ttf"
 TEMP_FILE_PATH: Final[str] = "/tmp/{}.jpg" if IS_PRODUCTION else "./tmp/{}.jpg"
 
 logger = logging.getLogger()
