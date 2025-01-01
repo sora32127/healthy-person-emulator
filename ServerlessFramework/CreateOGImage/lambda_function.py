@@ -137,11 +137,9 @@ def get_image(
                 fill=(0, 0, 0)
             )
 
-    im.save(TEMP_FILE_PATH.format(post_id), quality=95)
-    
-    if not IS_PRODUCTION:
-        return
+    im.save(TEMP_FILE_PATH.format(post_id), quality=95)    
 
+def upload_to_s3(post_id:int):
     s3 = boto3.client("s3")
     s3.upload_file(
         TEMP_FILE_PATH.format(post_id),
@@ -245,6 +243,7 @@ def lambda_handler(event, context):
             
             if not IS_PRODUCTION:
                 continue
+            upload_to_s3(post_id=post_id)
             update_postgres_ogp_url(post_id=post_id, s3_url=s3_url, secrets=secrets)
             post_url = f"https://healthy-person-emulator.org/archives/{post_id}"
             invoke_sns_post(post_title=post_title, post_url=post_url, og_url=s3_url, post_id=post_id)
