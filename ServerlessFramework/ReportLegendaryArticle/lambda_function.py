@@ -49,7 +49,7 @@ def update_tags_via_api(legendary_article_data, api_key):
             req = urllib.request.Request(
                 f"{API_BASE_URL}/api/internal/add-tag-to-post",
                 data=body,
-                headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+                headers={"X-API-Key": api_key, "Content-Type": "application/json", "User-Agent": "HPE-Internal-Lambda/1.0"},
                 method="POST"
             )
             with urllib.request.urlopen(req) as res:

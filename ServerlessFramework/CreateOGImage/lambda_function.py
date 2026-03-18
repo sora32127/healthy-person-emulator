@@ -53,7 +53,7 @@ def get_api_key():
 def poll_for_new_posts(api_key):
     req = urllib.request.Request(
         f"{API_BASE_URL}/api/internal/posts-for-ogp",
-        headers={"X-API-Key": api_key}
+        headers={"X-API-Key": api_key, "User-Agent": "HPE-Internal-Lambda/1.0"}
     )
     with urllib.request.urlopen(req) as res:
         result = json.loads(res.read())
@@ -193,7 +193,7 @@ def update_ogp_url(post_id:int, s3_url:str, api_key:str):
     req = urllib.request.Request(
         f"{API_BASE_URL}/api/internal/update-ogp",
         data=body,
-        headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+        headers={"X-API-Key": api_key, "Content-Type": "application/json", "User-Agent": "HPE-Internal-Lambda/1.0"},
         method="POST"
     )
     with urllib.request.urlopen(req) as res:
