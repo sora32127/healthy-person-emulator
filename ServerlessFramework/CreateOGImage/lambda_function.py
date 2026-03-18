@@ -5,7 +5,7 @@ from typing import Final, Dict, List
 import boto3
 import json
 import re
-from supabase import create_client, Client
+import urllib.request
 import logging
 import datetime
 import os
@@ -18,6 +18,8 @@ FONT_FILE_PATH: Final[str] = "./NotoSansJP-Medium.ttf" if IS_PRODUCTION else "Se
 TEMP_FILE_PATH: Final[str] = "/tmp/{}.jpg" if IS_PRODUCTION else "./tmp/{}.jpg"
 
 logger = logging.getLogger()
+
+API_BASE_URL = "https://healthy-person-emulator.org"
 
 IMAGE_WIDTH: Final[int] = 1200
 IMAGE_HEIGHT: Final[int] = 630
@@ -42,25 +44,25 @@ UPPER_PADDING_RATIO: Final[float] = 0.65 # 上方向のパディングを調整�
 4. 次に、エントリーごとのキーとコンテンツを書く
 """
 
-def get_supabase_secret():
+def get_api_key():
     client = boto3.client("secretsmanager")
-    response = client.get_secret_value(
-        SecretId="SUPABASE_CONNECTION_SECRET"
-    )
-    secret = response['SecretString']
-    return json.loads(secret)
+    response = client.get_secret_value(SecretId="HPE_INTERNAL_API")
+    secret = json.loads(response['SecretString'])
+    return secret['INTERNAL_API_KEY']
 
-def poll_supabase_for_new_posts(secrets):
-    client: Client = create_client(secrets["SUPABASE_URL"], secrets["SUPABASE_SERVICE_ROLE_KEY"])
-    one_day_ago = datetime.datetime.now() - datetime.timedelta(hours=24)
-    posts = client.table("dim_posts").select("post_id,post_content,post_title").gte('post_date_gmt', one_day_ago).eq("is_sns_shared", False).eq("is_welcomed", True).execute()
-    # posts = client.table("dim_posts").select("post_id,post_content,post_title").order("post_id", desc=True).limit(10).execute()
+def poll_for_new_posts(api_key):
+    req = urllib.request.Request(
+        f"{API_BASE_URL}/api/internal/posts-for-ogp",
+        headers={"X-API-Key": api_key}
+    )
+    with urllib.request.urlopen(req) as res:
+        result = json.loads(res.read())
     data = []
-    for post in posts.data:
+    for post in result['posts']:
         data.append({
-            "post_id": post["post_id"],
-            "post_title": post["post_title"],
-            "post_content": get_text_data(post["post_content"])
+            "post_id": post["postId"],
+            "post_title": post["postTitle"],
+            "post_content": get_text_data(post["postContent"])
         })
     return data
 
@@ -186,10 +188,16 @@ def upload_to_s3(post_id:int):
         "{}.jpg".format(post_id)
     )
 
-def update_postgres_ogp_url(post_id:int, s3_url:str, secrets:Dict[str,str]):
-    client: Client = create_client(secrets["SUPABASE_URL"], secrets["SUPABASE_SERVICE_ROLE_KEY"])
-    client.table("dim_posts").update({"ogp_image_url": s3_url}).eq("post_id",post_id).execute()
-    client.table("dim_posts").update([{"is_sns_shared": True}]).eq("post_id",post_id).execute()
+def update_ogp_url(post_id:int, s3_url:str, api_key:str):
+    body = json.dumps({"postId": post_id, "ogpImageUrl": s3_url}).encode()
+    req = urllib.request.Request(
+        f"{API_BASE_URL}/api/internal/update-ogp",
+        data=body,
+        headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+        method="POST"
+    )
+    with urllib.request.urlopen(req) as res:
+        res.read()
     return
 
 def invoke_sns_post(post_title, post_url, og_url, post_id):
@@ -277,8 +285,8 @@ test_posts = [
 
 def lambda_handler(event, context):
     try:
-        secrets = get_supabase_secret()
-        posts = test_posts if not IS_PRODUCTION else poll_supabase_for_new_posts(secrets)
+        api_key = get_api_key()
+        posts = test_posts if not IS_PRODUCTION else poll_for_new_posts(api_key)
         if len(posts) == 0:
             logger.setLevel("INFO")
             logger.info("There are no posts to create OG Image.")
@@ -295,7 +303,7 @@ def lambda_handler(event, context):
             if not IS_PRODUCTION:
                 continue
             upload_to_s3(post_id=post_id)
-            update_postgres_ogp_url(post_id=post_id, s3_url=s3_url, secrets=secrets)
+            update_ogp_url(post_id=post_id, s3_url=s3_url, api_key=api_key)
             post_url = f"https://healthy-person-emulator.org/archives/{post_id}"
             invoke_sns_post(post_title=post_title, post_url=post_url, og_url=s3_url, post_id=post_id)
             logger.setLevel("INFO")
@@ -305,38 +313,5 @@ def lambda_handler(event, context):
         logger.error(e)
         raise e
 
-def batch_update(start_id:int, end_id:int):
-    supabase_secrets = get_supabase_secret()
-    client: Client = create_client(supabase_secrets["SUPABASE_URL"], supabase_secrets["SUPABASE_SERVICE_ROLE_KEY"])
-    post_count = client.table("dim_posts").select("*", count="exact").gte("post_id", start_id).lte("post_id", end_id).execute()
-    print(f"post_count: {post_count.count}")
-    print(f"Num of batch: {post_count.count // 50}")
-    minimum_id = start_id
-    # 50件ずつ更新する
-    for i in range(0, post_count.count, 50):
-        batch_id = i // 50
-        print(f"batch {batch_id} is processing...")
-        posts = client.table("dim_posts").select("post_id,post_content").\
-            gte("post_id", minimum_id)\
-            .lte("post_id", end_id)\
-            .order("post_id")\
-            .limit(50)\
-            .execute()
-        print(f"batch {batch_id} Count: {len(posts.data)}")
-        print(f"batch {batch_id} Min ID: {posts.data[0]['post_id']}, Max ID: {posts.data[-1]['post_id']}")
-        for post in posts.data:
-            try: 
-                post_id = post["post_id"]
-                post_content = get_text_data(post["post_content"])
-                get_image(post_id=post_id, table_data=post_content)
-                upload_to_s3(post_id=post_id)
-            except Exception as e:
-                print(f"post_id: {post_id} is failed to create OG Image.")
-                with open(f"2025-01-01-OGP.txt", "a") as f:
-                    f.write(f"post_id: {post_id} is failed to create OG Image.\n")
-        print(f"batch {i // 50} is completed.")
-        minimum_id = posts.data[-1]["post_id"]
-        
 if __name__ == "__main__":
-
-    batch_update(30000, 50000)
+    lambda_handler(None, None)
