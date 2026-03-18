@@ -27,6 +27,7 @@ functions:
       include:
         - CreateOGImage/**
     module: CreateOGImage
+    timeout: 600
     layers: arn:aws:lambda:ap-northeast-1:770693421928:layer:Klayers-p39-pillow:1
     events:
      - schedule: rate(10 minutes)
