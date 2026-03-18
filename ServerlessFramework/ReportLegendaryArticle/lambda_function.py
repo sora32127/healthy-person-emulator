@@ -3,10 +3,12 @@ import boto3
 import json
 from google.oauth2 import service_account
 import tweepy
-from supabase import create_client
+import urllib.request
 import logging
 
 logger = logging.getLogger()
+
+API_BASE_URL = "https://healthy-person-emulator.org"
 
 def get_bigquery_credentials():
     secretmanager_client = boto3.client("secretsmanager")
@@ -34,17 +36,24 @@ def get_legendary_article_data(credentials):
         ans.append(row_dict)
     return ans
 
-def get_supabase_credentials():
+def get_api_key():
     secretmanager_client = boto3.client("secretsmanager")
-    secret_value = secretmanager_client.get_secret_value(SecretId="SUPABASE_CONNECTION_SECRET")
+    secret_value = secretmanager_client.get_secret_value(SecretId="HPE_INTERNAL_API")
     secrets = json.loads(secret_value["SecretString"])
-    return secrets
+    return secrets["INTERNAL_API_KEY"]
 
-def update_supabase(legendary_article_data, secrets):
-    client = create_client(secrets["SUPABASE_URL"], secrets["SUPABASE_SERVICE_ROLE_KEY"])
+def update_tags_via_api(legendary_article_data, api_key):
     for article in legendary_article_data:
         try:
-            response = client.table("rel_post_tags").insert({"post_id": article["post_id"], "tag_id": 575}).execute()
+            body = json.dumps({"postId": article["post_id"], "tagId": 575}).encode()
+            req = urllib.request.Request(
+                f"{API_BASE_URL}/api/internal/add-tag-to-post",
+                data=body,
+                headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req) as res:
+                res.read()
         except Exception as e:
             print(e)
             raise e
@@ -78,8 +87,8 @@ def lambda_handler(event, context):
     try:
         bigquery_credentials = get_bigquery_credentials()
         legendary_article_data = get_legendary_article_data(bigquery_credentials)
-        supabase_credentials = get_supabase_credentials()
-        update_supabase(legendary_article_data, supabase_credentials)
+        api_key = get_api_key()
+        update_tags_via_api(legendary_article_data, api_key)
         twitter_credentials = get_twitter_credentials()
         post_tweet(legendary_article_data, twitter_credentials)
         logger.setLevel("INFO")
