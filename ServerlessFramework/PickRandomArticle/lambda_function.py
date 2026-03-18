@@ -16,7 +16,7 @@ def get_secret():
 def get_random_article(api_key):
     req = urllib.request.Request(
         f"{API_BASE_URL}/api/internal/posts-for-pickup",
-        headers={"X-API-Key": api_key}
+        headers={"X-API-Key": api_key, "User-Agent": "HPE-Internal-Lambda/1.0"}
     )
     with urllib.request.urlopen(req) as res:
         data = json.loads(res.read())
@@ -27,7 +27,7 @@ def mark_picked_up(api_key, post_id):
     req = urllib.request.Request(
         f"{API_BASE_URL}/api/internal/mark-picked-up",
         data=body,
-        headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+        headers={"X-API-Key": api_key, "Content-Type": "application/json", "User-Agent": "HPE-Internal-Lambda/1.0"},
         method="POST"
     )
     with urllib.request.urlopen(req) as res:

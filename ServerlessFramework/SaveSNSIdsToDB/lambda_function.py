@@ -32,7 +32,7 @@ def save_sns_ids_to_db(api_key, post_id, social_type, social_post_id):
     req = urllib.request.Request(
         f"{API_BASE_URL}/api/internal/update-social-ids",
         data=body,
-        headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+        headers={"X-API-Key": api_key, "Content-Type": "application/json", "User-Agent": "HPE-Internal-Lambda/1.0"},
         method="POST"
     )
     with urllib.request.urlopen(req) as res:
